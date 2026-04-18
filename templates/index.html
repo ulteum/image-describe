@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Describe</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f11;
+      color: #e2e2e6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+    }
+
+    header { text-align: center; margin-bottom: 1.5rem; }
+    header h1 { font-size: 1.8rem; font-weight: 600; color: #fff; letter-spacing: -0.02em; }
+    header p  { margin-top: 0.4rem; color: #888; font-size: 0.9rem; }
+
+    /* ── Cards ── */
+    .card {
+      background: #18181b;
+      border: 1px solid #2a2a2e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 640px;
+    }
+    .card + .card { margin-top: 1.2rem; }
+    .card h2 {
+      font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.09em;
+      color: #666; margin-bottom: 1.1rem;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      width: 100%; max-width: 640px;
+      background: #18181b;
+      border: 1px solid #2a2a2e;
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 1.2rem;
+      gap: 4px;
+    }
+    .tab-btn {
+      flex: 1; padding: 0.5rem;
+      background: none; border: none; border-radius: 7px;
+      font-size: 0.88rem; font-weight: 500; color: #666;
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+    }
+    .tab-btn:hover { color: #ccc; }
+    .tab-btn.active { background: #2a2a2e; color: #e2e2e6; }
+
+    /* ── Form fields ── */
+    .field { margin-bottom: 0.85rem; }
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      display: block; font-size: 0.82rem; color: #999; margin-bottom: 0.3rem;
+    }
+    label span { color: #555; }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%; background: #0f0f11;
+      border: 1px solid #2e2e33; border-radius: 7px;
+      padding: 0.55rem 0.75rem; font-size: 0.9rem; color: #e2e2e6;
+      outline: none; transition: border-color 0.15s; appearance: none;
+      font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 0.75rem center; padding-right: 2rem;
+    }
+    input:focus, textarea:focus, select:focus { border-color: #6366f1; }
+    input[type="number"] { -moz-appearance: textfield; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    /* ── Key manager ── */
+    .key-row { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: end; margin-bottom: 0.85rem; }
+    .key-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.6rem; }
+    .key-actions { display: flex; gap: 0.5rem; }
+
+    .btn-sm {
+      background: #26262b; border: 1px solid #3a3a40; border-radius: 6px;
+      padding: 0.38rem 0.75rem; font-size: 0.8rem; color: #ccc;
+      cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap;
+    }
+    .btn-sm:hover { background: #2e2e35; color: #e2e2e6; }
+    .btn-sm.danger:hover { background: #2a1218; color: #f87171; border-color: #5c1e2a; }
+    .btn-sm.success { color: #4ade80; border-color: #166534; }
+
+    hr.divider { border: none; border-top: 1px solid #2a2a2e; margin: 1.1rem 0; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #2e2e33; border-radius: 10px; padding: 1.6rem 1rem;
+      text-align: center; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s; position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #6366f1; background: #1e1e24; }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-zone .icon { font-size: 1.6rem; margin-bottom: 0.35rem; color: #555; }
+    .drop-zone p { font-size: 0.83rem; color: #666; }
+    .drop-zone p strong { color: #999; }
+
+    .preview-wrap { display: none; margin-top: 1rem; }
+    .preview-wrap img { max-width: 100%; max-height: 260px; border-radius: 8px; border: 1px solid #2a2a2e; display: block; margin: 0 auto; }
+    .file-name { text-align: center; font-size: 0.78rem; color: #555; margin-top: 0.35rem; }
+
+    /* ── Multi-image preview grid ── */
+    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.5rem; }
+    .preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; border: 1px solid #2a2a2e; }
+
+    /* ── Checkboxes ── */
+    .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 1rem; }
+    .checkbox-item { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.88rem; color: #ccc; user-select: none; }
+    .checkbox-item input[type="checkbox"] { display: none; }
+    .checkbox-item .box {
+      width: 16px; height: 16px; border: 1.5px solid #3a3a40; border-radius: 4px;
+      background: #0f0f11; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .checkbox-item input:checked + .box { background: #6366f1; border-color: #6366f1; }
+    .checkbox-item input:checked + .box::after {
+      content: ''; display: block; width: 4px; height: 7px;
+      border: 1.5px solid #fff; border-top: none; border-left: none;
+      transform: rotate(45deg) translate(-1px, -1px);
+    }
+    .select-links { display: flex; gap: 0.75rem; margin-top: 0.65rem; }
+    .select-links button { background: none; border: none; color: #6366f1; font-size: 0.78rem; cursor: pointer; padding: 0; }
+    .select-links button:hover { text-decoration: underline; }
+
+    /* ── Radio ── */
+    .radio-group { display: flex; gap: 1.2rem; }
+    .radio-item { display: flex; align-items: center; gap: 0.45rem; font-size: 0.88rem; color: #ccc; cursor: pointer; user-select: none; }
+    .radio-item input[type="radio"] { display: none; }
+    .radio-item .dot {
+      width: 16px; height: 16px; border: 1.5px solid #3a3a40; border-radius: 50%;
+      background: #0f0f11; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.12s;
+    }
+    .radio-item input:checked + .dot { border-color: #6366f1; }
+    .radio-item input:checked + .dot::after { content: ''; width: 7px; height: 7px; background: #6366f1; border-radius: 50%; }
+
+    /* ── Sliders ── */
+    .param-row { margin-bottom: 1.1rem; }
+    .param-row:last-of-type { margin-bottom: 0; }
+    .param-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.35rem; }
+    .param-name { font-size: 0.85rem; color: #ccc; }
+    .param-hint { font-size: 0.75rem; color: #555; margin-left: 0.4rem; }
+    .param-value { font-size: 0.85rem; color: #6366f1; font-variant-numeric: tabular-nums; min-width: 3.5ch; text-align: right; }
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px; background: #2e2e33; border-radius: 2px; outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 15px; height: 15px;
+      background: #6366f1; border-radius: 50%; cursor: pointer; transition: transform 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type="range"]::-moz-range-thumb {
+      width: 15px; height: 15px; background: #6366f1; border-radius: 50%; border: none; cursor: pointer;
+    }
+    .param-reset { background: none; border: none; color: #555; font-size: 0.75rem; cursor: pointer; padding: 0; margin-top: 0.9rem; display: block; }
+    .param-reset:hover { color: #6366f1; }
+
+    /* ── Gen params grid ── */
+    .gen-params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }
+
+    /* ── Submit ── */
+    .submit-btn {
+      width: 100%; background: #6366f1; color: #fff; border: none; border-radius: 8px;
+      padding: 0.7rem 1rem; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; margin-top: 1.2rem; transition: background 0.15s, opacity 0.15s;
+    }
+    .submit-btn:hover   { background: #4f52d9; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Result ── */
+    .result-card { display: none; margin-top: 1.2rem; }
+
+    .spinner {
+      display: none; width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      display: none; background: #2a1218; border: 1px solid #5c1e2a;
+      border-radius: 8px; padding: 0.75rem 1rem; color: #f87171; font-size: 0.88rem; margin-bottom: 1rem;
+    }
+
+    #description-output { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.7; color: #d4d4d8; }
+
+    .copy-btn {
+      display: none; align-items: center; gap: 0.4rem;
+      background: #26262b; border: 1px solid #3a3a40; border-radius: 6px;
+      padding: 0.35rem 0.7rem; font-size: 0.78rem; color: #aaa;
+      cursor: pointer; margin-top: 1rem; transition: background 0.15s, color 0.15s;
+    }
+    .copy-btn:hover { background: #2e2e35; color: #e2e2e6; }
+    .copy-btn.copied { color: #4ade80; border-color: #166534; }
+
+    /* ── Generated images ── */
+    .generated-images { display: flex; flex-direction: column; gap: 1rem; }
+    .gen-image-wrap { position: relative; }
+    .gen-image-wrap img {
+      max-width: 100%; border-radius: 8px; border: 1px solid #2a2a2e; display: block;
+    }
+    .download-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: #26262b; border: 1px solid #3a3a40; border-radius: 6px;
+      padding: 0.35rem 0.7rem; font-size: 0.78rem; color: #aaa;
+      cursor: pointer; margin-top: 0.5rem; text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .download-btn:hover { background: #2e2e35; color: #e2e2e6; }
+
+    /* ── History modal ── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+      display: none; align-items: center; justify-content: center;
+      padding: 1rem; z-index: 100;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #18181b; border: 1px solid #2a2a2e; border-radius: 12px;
+      width: 100%; max-width: 720px; max-height: 85vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.95rem 1.2rem; border-bottom: 1px solid #2a2a2e;
+    }
+    .modal-header h3 { font-size: 0.95rem; font-weight: 600; color: #fff; }
+    .modal-controls {
+      display: flex; gap: 0.9rem; align-items: center;
+      padding: 0.75rem 1.2rem; border-bottom: 1px solid #2a2a2e;
+    }
+    .modal-controls input[type="text"] { flex: 1; }
+    .modal-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
+    .history-item {
+      padding: 0.65rem 0.8rem; border-radius: 8px; cursor: pointer;
+      border: 1px solid transparent; margin-bottom: 0.35rem;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .history-item:hover { background: #1f1f24; }
+    .history-item.open { background: #1f1f24; border-color: #2e2e33; }
+    .history-meta {
+      font-size: 0.72rem; color: #666; display: flex; gap: 0.7rem;
+      flex-wrap: wrap; align-items: center; margin-bottom: 0.3rem;
+    }
+    .history-type-badge {
+      padding: 1px 7px; border-radius: 4px;
+      background: #2a2a2e; font-size: 0.68rem; letter-spacing: 0.04em;
+      text-transform: uppercase; font-weight: 600;
+    }
+    .history-type-badge.describe  { color: #818cf8; }
+    .history-type-badge.generate  { color: #4ade80; }
+    .history-type-badge.inpaint   { color: #f59e0b; }
+    .history-prompt-short {
+      color: #ccc; font-size: 0.87rem; line-height: 1.45;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .history-full { display: none; margin-top: 0.55rem; }
+    .history-prompt-full {
+      color: #d4d4d8; font-size: 0.86rem; line-height: 1.55;
+      white-space: pre-wrap; padding: 0.55rem 0.7rem;
+      background: #0f0f11; border-radius: 6px; border: 1px solid #26262b;
+      max-height: 260px; overflow-y: auto;
+    }
+    .history-actions { display: flex; gap: 0.4rem; margin-top: 0.55rem; }
+    .modal-footer {
+      padding: 0.8rem 1.2rem; border-top: 1px solid #2a2a2e;
+      color: #666; font-size: 0.8rem; text-align: center;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 2.5rem;
+    }
+    .history-btn {
+      padding: 0.2rem 0.55rem; font-size: 0.72rem;
+      text-transform: none; letter-spacing: 0; margin-left: auto;
+    }
+    .card-head-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.1rem;
+    }
+    .card-head-row h2 { margin-bottom: 0; }
+    .label-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 0.3rem;
+    }
+    .label-row label { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Image Describe</h1>
+  <p>Vision model tools</p>
+</header>
+
+<!-- ── Shared: Providers ── -->
+<div class="card" id="providers-card">
+  <h2>Providers</h2>
+  <div class="field">
+    <label>Saved providers</label>
+    <select id="prov-select">
+      <option value="">— new provider —</option>
+    </select>
+  </div>
+  <div class="key-fields">
+    <div>
+      <label>Name</label>
+      <input type="text" id="prov-name" placeholder="e.g. AtlasCloud main" autocomplete="off" />
+    </div>
+    <div>
+      <label>Kind</label>
+      <select id="prov-kind">
+        <option value="openai">openai <span>(chat / JSON image-gen)</span></option>
+        <option value="openai-multipart">openai-multipart (images/edits)</option>
+        <option value="atlascloud">atlascloud (submit + poll)</option>
+      </select>
+    </div>
+  </div>
+  <div class="field">
+    <label>Base URL <span>(OpenAI: leave blank; generate: full endpoint URL; atlascloud: ignored)</span></label>
+    <input type="text" id="prov-base-url" placeholder="https://api.example.com/v1  —or—  https://nano-gpt.com/api/generate-image" autocomplete="off" />
+  </div>
+  <div class="field">
+    <label>API key</label>
+    <input type="password" id="prov-api-key" placeholder="sk-..." autocomplete="off" />
+  </div>
+  <div class="field">
+    <label>Config JSON <span>(optional — e.g. {"image_field_name":"init_image","image_encoding":"base64"})</span></label>
+    <textarea id="prov-config" placeholder='{}' style="min-height:56px; font-family: ui-monospace, monospace; font-size:0.82rem;"></textarea>
+  </div>
+  <div class="key-actions">
+    <button type="button" class="btn-sm" id="prov-save-btn">Save</button>
+    <button type="button" class="btn-sm danger" id="prov-delete-btn">Delete</button>
+  </div>
+</div>
+
+<!-- ── Tabs ── -->
+<div class="tabs" style="margin-top:1.2rem;">
+  <button class="tab-btn active" data-tab="describe">Describe</button>
+  <button class="tab-btn" data-tab="img2img">Generate</button>
+  <button class="tab-btn" data-tab="inpaint">Inpaint / Outpaint</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     TAB: DESCRIBE
+     ════════════════════════════════════════════════════ -->
+<div id="tab-describe">
+<form id="describe-form">
+
+  <div class="card">
+    <h2>Vision Model</h2>
+    <div class="field">
+      <label>Provider</label>
+      <select id="desc-provider" name="provider_id" required>
+        <option value="">— select a provider —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <input type="text" id="model" name="model" placeholder="gpt-4o"
+             list="desc-model-datalist" autocomplete="off" required />
+      <datalist id="desc-model-datalist"></datalist>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Image</h2>
+    <div class="drop-zone" id="desc-drop-zone">
+      <input type="file" id="desc-image" name="image" accept=".png,.jpg,.jpeg,.gif,.webp" required />
+      <div class="icon">&#128247;</div>
+      <p><strong>Click to upload</strong> or drag &amp; drop</p>
+      <p>PNG, JPG, JPEG, GIF, WEBP &mdash; max 20 MB</p>
+    </div>
+    <div class="preview-wrap" id="desc-preview-wrap">
+      <img id="desc-preview-img" src="" alt="Preview" />
+      <div class="file-name" id="desc-file-name"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head-row">
+      <h2>Include in Description</h2>
+      <button type="button" class="btn-sm history-btn" data-history="describe">History</button>
+    </div>
+    <div class="checkbox-grid">
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="count" checked /><span class="box"></span>Character count &amp; scene</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="clothing" checked /><span class="box"></span>Clothing</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="build" checked /><span class="box"></span>Physical build &amp; age</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="accessories" checked /><span class="box"></span>Accessories</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="face" checked /><span class="box"></span>Facial features</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="expression" checked /><span class="box"></span>Expression &amp; pose</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="hair" checked /><span class="box"></span>Hair</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="marks" checked /><span class="box"></span>Distinguishing marks</label>
+      <label class="checkbox-item"><input type="checkbox" name="sections" value="skin" checked /><span class="box"></span>Skin tone</label>
+    </div>
+    <div class="select-links">
+      <button type="button" id="check-all-btn">Select all</button>
+      <button type="button" id="check-none-btn">Clear all</button>
+    </div>
+    <hr class="divider" />
+    <label style="margin-bottom:0.6rem;">Output format</label>
+    <div class="radio-group">
+      <label class="radio-item"><input type="radio" name="output_format" value="plain" checked /><span class="dot"></span>Plain text</label>
+      <label class="radio-item"><input type="radio" name="output_format" value="markdown" /><span class="dot"></span>Markdown</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Model Parameters</h2>
+    <div class="param-row">
+      <div class="param-header">
+        <span class="param-name">Temperature<span class="param-hint">creativity / consistency</span></span>
+        <span class="param-value" id="temp-val">0.4</span>
+      </div>
+      <input type="range" name="temperature" id="temperature" min="0" max="2" step="0.05" value="0.4" />
+    </div>
+    <div class="param-row">
+      <div class="param-header">
+        <span class="param-name">Top-P<span class="param-hint">nucleus sampling</span></span>
+        <span class="param-value" id="topp-val">1.0</span>
+      </div>
+      <input type="range" name="top_p" id="top_p" min="0" max="1" step="0.05" value="1.0" />
+    </div>
+    <div class="param-row">
+      <div class="param-header">
+        <span class="param-name">Frequency Penalty<span class="param-hint">reduces repetitive phrasing</span></span>
+        <span class="param-value" id="freq-val">0.1</span>
+      </div>
+      <input type="range" name="frequency_penalty" id="frequency_penalty" min="-2" max="2" step="0.05" value="0.1" />
+    </div>
+    <div class="param-row">
+      <div class="param-header">
+        <span class="param-name">Max Tokens<span class="param-hint">maximum response length</span></span>
+      </div>
+      <input type="number" name="max_tokens" id="max_tokens" min="64" max="8192" step="64" value="2048" />
+    </div>
+    <button type="button" class="param-reset" id="desc-param-reset-btn">Reset to defaults</button>
+  </div>
+
+  <button type="submit" class="submit-btn" id="desc-submit-btn">Describe Image</button>
+</form>
+
+<div class="card result-card" id="desc-result-card">
+  <h2>Description</h2>
+  <div class="spinner" id="desc-spinner"></div>
+  <div class="error-msg" id="desc-error-msg"></div>
+  <div id="description-output"></div>
+  <button class="copy-btn" id="copy-btn">Copy</button>
+</div>
+</div><!-- #tab-describe -->
+
+
+<!-- ════════════════════════════════════════════════════
+     TAB: IMAGE TO IMAGE
+     ════════════════════════════════════════════════════ -->
+<div id="tab-img2img" style="display:none;">
+<form id="img2img-form">
+
+  <div class="card">
+    <h2>Image Generation Model</h2>
+    <div class="field">
+      <label>Provider</label>
+      <select id="gen-provider" name="provider_id" required>
+        <option value="">— select a provider —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <input type="text" id="img_model" name="img_model" placeholder="dall-e-2"
+             list="gen-model-datalist" autocomplete="off" required />
+      <datalist id="gen-model-datalist">
+        <option value="bytedance/seedream-v4.5"></option>
+        <option value="bytedance/seedream-v4.5/edit"></option>
+        <option value="google/nano-banana-pro/text-to-image"></option>
+        <option value="google/nano-banana-pro/edit"></option>
+        <option value="qwen/qwen-image-2.0/text-to-image"></option>
+        <option value="qwen/qwen-image-2.0/edit"></option>
+        <option value="black-forest-labs/flux-schnell"></option>
+      </datalist>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Prompt &amp; Reference Image</h2>
+    <div class="drop-zone" id="gen-drop-zone">
+      <input type="file" id="gen-image" name="images" accept=".png,.jpg,.jpeg,.gif,.webp" multiple />
+      <div class="icon">&#128444;</div>
+      <p><strong>Click to upload</strong> or drag &amp; drop <span style="color:#555">(optional — multiple images supported)</span></p>
+      <p>PNG, JPG, JPEG, GIF, WEBP &mdash; max 20 MB</p>
+    </div>
+    <div id="gen-preview-wrap" style="display:none; margin-top:1rem;">
+      <div class="preview-grid" id="gen-preview-grid"></div>
+      <div class="file-name" id="gen-file-name"></div>
+    </div>
+    <div class="field" style="margin-top:1rem;">
+      <div class="label-row">
+        <label>Prompt</label>
+        <button type="button" class="btn-sm history-btn" data-history="generate">History</button>
+      </div>
+      <textarea name="prompt" id="gen-prompt" placeholder="Describe what to generate or how to transform the image…" required></textarea>
+    </div>
+    <div class="field">
+      <label>Negative prompt <span>(optional — what to avoid)</span></label>
+      <textarea name="negative_prompt" id="gen-negative-prompt" placeholder="blurry, low quality, distorted…" style="min-height:56px;"></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Generation Parameters</h2>
+    <div class="gen-params-grid">
+      <div class="field" style="margin-bottom:0;">
+        <label>Size</label>
+        <select name="size" id="gen-size">
+          <option value="">auto</option>
+          <option value="1440x2560">1440×2560</option>
+          <option value="1920x1920">1920×1920</option>
+          <option value="2048x3072">2048×3072</option>
+          <option value="2304x4096">2304×4096</option>
+          <option value="2560x1440">2560×1440</option>
+          <option value="3072x2048">3072×2048</option>
+          <option value="4096x2304">4096×2304</option>
+          <option value="4096x4096">4096×4096</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Number of images</label>
+        <input type="number" name="n" id="gen-n" min="1" max="10" step="1" value="1" />
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Quality <span>(DALL-E 3)</span></label>
+        <select name="quality" id="gen-quality">
+          <option value="">— default —</option>
+          <option value="standard">standard</option>
+          <option value="hd">hd</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Style <span>(DALL-E 3)</span></label>
+        <select name="style" id="gen-style">
+          <option value="">— default —</option>
+          <option value="vivid">vivid</option>
+          <option value="natural">natural</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="advanced-gen-params">
+      <hr class="divider" />
+
+      <div class="param-row">
+        <div class="param-header">
+          <span class="param-name">Strength<span class="param-hint">how much the image influences the result</span></span>
+          <span class="param-value" id="strength-val">0.80</span>
+        </div>
+        <input type="range" name="strength" id="gen-strength" min="0" max="1" step="0.05" value="0.8" />
+      </div>
+      <div class="param-row">
+        <div class="param-header">
+          <span class="param-name">Guidance Scale<span class="param-hint">how closely to follow the prompt</span></span>
+          <span class="param-value" id="guidance-val">7.5</span>
+        </div>
+        <input type="range" name="guidance_scale" id="gen-guidance" min="1" max="20" step="0.5" value="7.5" />
+      </div>
+      <div class="gen-params-grid" style="margin-top:0.85rem;">
+        <div class="field" style="margin-bottom:0;">
+          <label>Inference steps <span>(0 = model default)</span></label>
+          <input type="number" name="num_inference_steps" id="gen-steps" min="0" max="150" step="1" value="0" />
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Seed <span>(blank = random)</span></label>
+          <input type="number" name="seed" id="gen-seed" placeholder="e.g. 42" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="submit-btn" id="gen-submit-btn">Generate Image</button>
+</form>
+
+<div class="card result-card" id="gen-result-card">
+  <h2>Generated Images</h2>
+  <div class="spinner" id="gen-spinner"></div>
+  <div class="error-msg" id="gen-error-msg"></div>
+  <div class="generated-images" id="generated-images"></div>
+</div>
+</div><!-- #tab-img2img -->
+
+
+<!-- ════════════════════════════════════════════════════
+     TAB: INPAINT / OUTPAINT
+     ════════════════════════════════════════════════════ -->
+<div id="tab-inpaint" style="display:none;">
+<form id="inpaint-form">
+
+  <div class="card">
+    <h2>Edit Model (AtlasCloud)</h2>
+    <p style="color:#666; font-size:0.78rem; margin-bottom:0.7rem; line-height:1.5;">
+      The mask goes to <code style="color:#999">images[0]</code> (black = preserved, white = regenerate),
+      the source image to <code style="color:#999">images[1]</code>. None of the current edit models
+      have a native mask parameter — the prompt explains the convention.
+    </p>
+    <div class="field">
+      <label>Provider <span>(must be an AtlasCloud provider)</span></label>
+      <select id="inp-provider" name="provider_id" required>
+        <option value="">— select a provider —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <input type="text" id="inp_model" name="model" placeholder="google/nano-banana-pro/edit"
+             list="inp-model-datalist" autocomplete="off" required />
+      <datalist id="inp-model-datalist">
+        <option value="google/nano-banana-pro/edit"></option>
+        <option value="google/nano-banana-pro/edit-ultra"></option>
+        <option value="google/nano-banana/edit"></option>
+        <option value="google/nano-banana-2/edit"></option>
+        <option value="bytedance/seedream-v4.5/edit"></option>
+        <option value="bytedance/seedream-v5.0-lite/edit"></option>
+        <option value="qwen/qwen-image-2.0/edit"></option>
+        <option value="qwen/qwen-image-2.0-pro/edit"></option>
+        <option value="alibaba/qwen-image/edit-plus"></option>
+        <option value="alibaba/wan-2.7/image-edit"></option>
+        <option value="openai/gpt-image-1.5/edit"></option>
+        <option value="black-forest-labs/flux-kontext-dev"></option>
+      </datalist>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Mode</h2>
+    <div class="radio-group">
+      <label class="radio-item"><input type="radio" name="mode" value="inpaint" checked /><span class="dot"></span>Inpaint <span style="color:#555;font-size:0.79rem;margin-left:0.3rem;">(paint mask)</span></label>
+      <label class="radio-item"><input type="radio" name="mode" value="outpaint" /><span class="dot"></span>Outpaint <span style="color:#555;font-size:0.79rem;margin-left:0.3rem;">(extend canvas)</span></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Source Image</h2>
+    <div class="drop-zone" id="inp-drop-zone">
+      <input type="file" id="inp-image" accept=".png,.jpg,.jpeg,.webp" />
+      <div class="icon">&#128444;</div>
+      <p><strong>Click to upload</strong> or drag &amp; drop</p>
+      <p>PNG, JPG, JPEG, WEBP</p>
+    </div>
+    <div id="inp-canvas-wrap" style="display:none; margin-top:1rem;">
+      <div id="inp-canvas-stack" style="position:relative; border:1px solid #2a2a2e; border-radius:8px; overflow:hidden; background:#0a0a0c; line-height:0;">
+        <canvas id="inp-image-canvas" style="display:block; max-width:100%; height:auto;"></canvas>
+        <canvas id="inp-mask-canvas"  style="position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair;"></canvas>
+        <canvas id="inp-pad-preview"  style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none;"></canvas>
+      </div>
+      <div class="file-name" id="inp-file-name"></div>
+    </div>
+  </div>
+
+  <div class="card" id="inp-brush-card">
+    <h2>Mask Brush</h2>
+    <div class="param-row">
+      <div class="param-header">
+        <span class="param-name">Brush size<span class="param-hint">pixels (at image resolution)</span></span>
+        <span class="param-value" id="inp-brush-val">40</span>
+      </div>
+      <input type="range" id="inp-brush" min="5" max="400" step="1" value="40" />
+    </div>
+    <div style="display:flex; gap:0.5rem; margin-top:0.7rem;">
+      <button type="button" class="btn-sm" id="inp-mask-clear">Clear mask</button>
+      <button type="button" class="btn-sm" id="inp-mask-erase">Erase mode: off</button>
+    </div>
+  </div>
+
+  <div class="card" id="inp-pad-card" style="display:none;">
+    <h2>Outpaint Padding</h2>
+    <p style="color:#666; font-size:0.78rem; margin-bottom:0.7rem;">
+      Pixels to add on each side. Padded area is filled neutral grey and marked as the masked region.
+    </p>
+    <div class="gen-params-grid">
+      <div class="field" style="margin-bottom:0;">
+        <label>Top px</label>
+        <input type="number" id="inp-pad-top" min="0" step="16" value="256" />
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Right px</label>
+        <input type="number" id="inp-pad-right" min="0" step="16" value="256" />
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Bottom px</label>
+        <input type="number" id="inp-pad-bottom" min="0" step="16" value="256" />
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Left px</label>
+        <input type="number" id="inp-pad-left" min="0" step="16" value="256" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head-row">
+      <h2>Prompt</h2>
+      <button type="button" class="btn-sm history-btn" data-history="inpaint">History</button>
+    </div>
+    <div class="field">
+      <label>What should the masked area become?</label>
+      <textarea id="inp-prompt" name="prompt" placeholder="e.g. replace with a wooden chair, or a sunset sky extending into the new canvas…" required></textarea>
+    </div>
+  </div>
+
+  <button type="submit" class="submit-btn" id="inp-submit-btn">Apply</button>
+</form>
+
+<div class="card result-card" id="inp-result-card">
+  <h2>Result</h2>
+  <div class="spinner" id="inp-spinner"></div>
+  <div class="error-msg" id="inp-error-msg"></div>
+  <div class="generated-images" id="inp-images"></div>
+</div>
+</div><!-- #tab-inpaint -->
+
+
+<!-- ── Prompt history modal (shared) ── -->
+<div id="history-modal" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Prompt history</h3>
+      <button type="button" class="btn-sm" id="history-close">Close</button>
+    </div>
+    <div class="modal-controls">
+      <input type="text" id="history-search" placeholder="Search prompts / models…" autocomplete="off" />
+      <label class="checkbox-item" style="font-size:0.82rem;">
+        <input type="checkbox" id="history-all-types" />
+        <span class="box"></span>All types
+      </label>
+    </div>
+    <div class="modal-list" id="history-list"></div>
+    <div class="modal-footer" id="history-footer"></div>
+  </div>
+</div>
+
+
+<script>
+// ── Storage ──────────────────────────────────────────────────────────────────
+function load(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+  catch { return fallback; }
+}
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+const TAB_IDS = { describe: 'tab-describe', img2img: 'tab-img2img', inpaint: 'tab-inpaint' };
+const tabBtns = document.querySelectorAll('.tab-btn');
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    Object.entries(TAB_IDS).forEach(([name, id]) => {
+      document.getElementById(id).style.display = btn.dataset.tab === name ? '' : 'none';
+    });
+    save('imgdesc_active_tab', btn.dataset.tab);
+  });
+});
+// Restore active tab
+const savedTab = load('imgdesc_active_tab', 'describe');
+if (savedTab !== 'describe') {
+  const btn = document.querySelector(`[data-tab="${savedTab}"]`);
+  if (btn) btn.click();
+}
+
+// ── Providers manager (shared) ────────────────────────────────────────────────
+const provSelect   = document.getElementById('prov-select');
+const provName     = document.getElementById('prov-name');
+const provKind     = document.getElementById('prov-kind');
+const provBaseUrl  = document.getElementById('prov-base-url');
+const provApiKey   = document.getElementById('prov-api-key');
+const provConfig   = document.getElementById('prov-config');
+const provSaveBtn  = document.getElementById('prov-save-btn');
+const provDelBtn   = document.getElementById('prov-delete-btn');
+
+// Per-tab provider dropdowns
+const descProvSelect = document.getElementById('desc-provider');
+const genProvSelect  = document.getElementById('gen-provider');
+const inpProvSelect  = document.getElementById('inp-provider');
+
+let providers = [];   // full list
+let editingId = null; // provider id currently loaded in the editor
+
+async function fetchProviders() {
+  try { providers = await (await fetch('api/providers')).json(); }
+  catch { providers = []; }
+}
+
+function fillProvSelect(select, { filterKinds = null, placeholder = '— select a provider —' } = {}) {
+  const prev = select.value;
+  select.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value = ''; ph.textContent = placeholder;
+  select.appendChild(ph);
+  providers
+    .filter(p => !filterKinds || filterKinds.includes(p.kind))
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = `${p.name} (${p.kind})`;
+      select.appendChild(opt);
+    });
+  if (prev && [...select.options].some(o => o.value === prev)) select.value = prev;
+}
+
+function renderAllProvSelects() {
+  // Editor picker: show every provider
+  provSelect.innerHTML = '<option value="">— new provider —</option>';
+  providers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id; opt.textContent = `${p.name} (${p.kind})`;
+    provSelect.appendChild(opt);
+  });
+  if (editingId) provSelect.value = String(editingId);
+
+  fillProvSelect(descProvSelect);
+  fillProvSelect(genProvSelect);
+  fillProvSelect(inpProvSelect, { filterKinds: ['atlascloud'] });
+
+  // Restore per-tab selections from localStorage
+  const dSaved = load('imgdesc_desc_provider_id', '');
+  const gSaved = load('imgdesc_gen_provider_id', '');
+  const iSaved = load('imgdesc_inp_provider_id', '');
+  if (dSaved && [...descProvSelect.options].some(o => o.value === String(dSaved))) descProvSelect.value = String(dSaved);
+  if (gSaved && [...genProvSelect.options].some(o  => o.value === String(gSaved))) genProvSelect.value  = String(gSaved);
+  if (iSaved && [...inpProvSelect.options].some(o  => o.value === String(iSaved))) inpProvSelect.value  = String(iSaved);
+
+  refreshProviderModels('describe', descProvSelect.value);
+  refreshProviderModels('generate', genProvSelect.value);
+  refreshProviderModels('inpaint',  inpProvSelect.value);
+
+  if (typeof updateGenAdvancedVisibility === 'function') updateGenAdvancedVisibility();
+}
+
+function clearProviderEditor() {
+  editingId = null;
+  provName.value = '';
+  provKind.value = 'openai';
+  provBaseUrl.value = '';
+  provApiKey.value = '';
+  provConfig.value = '';
+  provSelect.value = '';
+}
+
+function loadProviderIntoEditor(id) {
+  const p = providers.find(x => String(x.id) === String(id));
+  if (!p) { clearProviderEditor(); return; }
+  editingId = p.id;
+  provName.value    = p.name;
+  provKind.value    = p.kind;
+  provBaseUrl.value = p.base_url || '';
+  provApiKey.value  = p.api_key;
+  provConfig.value  = p.config && Object.keys(p.config).length ? JSON.stringify(p.config, null, 2) : '';
+}
+
+provSelect.addEventListener('change', () => {
+  if (!provSelect.value) clearProviderEditor();
+  else loadProviderIntoEditor(provSelect.value);
+});
+
+provSaveBtn.addEventListener('click', async () => {
+  const name = provName.value.trim(), kind = provKind.value,
+        base_url = provBaseUrl.value.trim(), api_key = provApiKey.value.trim(),
+        config = provConfig.value.trim();
+  if (!name)    { provName.focus();    return; }
+  if (!api_key) { provApiKey.focus();  return; }
+  if (config) {
+    try { JSON.parse(config); }
+    catch (e) { alert('Config must be valid JSON: ' + e.message); provConfig.focus(); return; }
+  }
+  const body = { id: editingId, name, kind, base_url, api_key, config };
+  const res = await fetch('api/providers', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || 'Save failed'); return; }
+  const out = await res.json();
+  editingId = out.id;
+  await fetchProviders();
+  renderAllProvSelects();
+  provSaveBtn.textContent = 'Saved!'; provSaveBtn.classList.add('success');
+  setTimeout(() => { provSaveBtn.textContent = 'Save'; provSaveBtn.classList.remove('success'); }, 1500);
+});
+
+provDelBtn.addEventListener('click', async () => {
+  if (!editingId) return;
+  if (!confirm('Delete this provider? Its saved models will also be removed.')) return;
+  await fetch('api/providers/' + editingId, { method: 'DELETE' });
+  clearProviderEditor();
+  await fetchProviders();
+  renderAllProvSelects();
+});
+
+// Persist per-tab provider selection
+descProvSelect.addEventListener('change', () => {
+  save('imgdesc_desc_provider_id', descProvSelect.value);
+  refreshProviderModels('describe', descProvSelect.value);
+});
+genProvSelect.addEventListener('change', () => {
+  save('imgdesc_gen_provider_id', genProvSelect.value);
+  refreshProviderModels('generate', genProvSelect.value);
+});
+inpProvSelect.addEventListener('change', () => {
+  save('imgdesc_inp_provider_id', inpProvSelect.value);
+  refreshProviderModels('inpaint', inpProvSelect.value);
+});
+
+// ── Per-provider model datalists ──────────────────────────────────────────────
+const DATALIST_FOR = {
+  describe: 'desc-model-datalist',
+  generate: 'gen-model-datalist',
+  inpaint:  'inp-model-datalist',
+};
+function renderDatalist(datalist, items) {
+  const existing = new Set([...datalist.options].map(o => o.value));
+  items.forEach(v => {
+    if (!existing.has(v)) {
+      const opt = document.createElement('option');
+      opt.value = v; datalist.appendChild(opt);
+    }
+  });
+}
+async function refreshProviderModels(capability, providerId) {
+  const dl = document.getElementById(DATALIST_FOR[capability]);
+  if (!dl || !providerId) return;
+  try {
+    const rows = await (await fetch(`api/providers/${providerId}/models?capability=${capability}`)).json();
+    renderDatalist(dl, rows.map(r => r.name));
+  } catch {}
+}
+
+// Describe tab – model input
+const modelInput = document.getElementById('model');
+modelInput.value = load('imgdesc_last_model', '');
+
+// Img2img tab – model input
+const imgModelInput = document.getElementById('img_model');
+imgModelInput.value = load('imgdesc_last_img_model', '');
+
+(async () => {
+  await fetchProviders();
+  renderAllProvSelects();
+  clearProviderEditor();
+})();
+
+// Gen params
+document.getElementById('gen-size').value    = load('imgdesc_gen_size', '');
+document.getElementById('gen-n').value       = load('imgdesc_gen_n', 1);
+document.getElementById('gen-quality').value = load('imgdesc_gen_quality', '');
+document.getElementById('gen-style').value   = load('imgdesc_gen_style', '');
+['gen-size','gen-n','gen-quality','gen-style'].forEach(id => {
+  document.getElementById(id).addEventListener('change', e => save('imgdesc_gen_' + id.replace('gen-',''), e.target.value));
+});
+
+// Hide advanced gen params when the selected provider is atlascloud
+function updateGenAdvancedVisibility() {
+  const p = providers.find(x => String(x.id) === String(genProvSelect.value));
+  const hide = p && p.kind === 'atlascloud';
+  document.getElementById('advanced-gen-params').style.display = hide ? 'none' : '';
+}
+genProvSelect.addEventListener('change', updateGenAdvancedVisibility);
+
+// Img2img sliders
+initParam('gen-strength', 'strength-val', 2);
+initParam('gen-guidance',  'guidance-val', 1);
+
+// Steps + seed persistence
+document.getElementById('gen-steps').value = load('imgdesc_gen_steps', 0);
+document.getElementById('gen-seed').value  = load('imgdesc_gen_seed', '');
+document.getElementById('gen-steps').addEventListener('input', e => save('imgdesc_gen_steps', e.target.value));
+document.getElementById('gen-seed').addEventListener('input',  e => save('imgdesc_gen_seed',  e.target.value));
+
+// ── Drop zone setup ───────────────────────────────────────────────────────────
+function setupDropZone(dropZoneId, inputId, previewWrapId, previewImgId, fileNameId) {
+  const dropZone   = document.getElementById(dropZoneId);
+  const input      = document.getElementById(inputId);
+  const previewWrap = document.getElementById(previewWrapId);
+  const previewImg = document.getElementById(previewImgId);
+  const fileNameEl = document.getElementById(fileNameId);
+
+  function showPreview(file) {
+    previewImg.src = URL.createObjectURL(file);
+    fileNameEl.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    previewWrap.style.display = 'block';
+  }
+  input.addEventListener('change', () => { if (input.files.length) showPreview(input.files[0]); });
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; showPreview(e.dataTransfer.files[0]); }
+  });
+}
+setupDropZone('desc-drop-zone', 'desc-image', 'desc-preview-wrap', 'desc-preview-img', 'desc-file-name');
+
+// ── Multi-image drop zone (generate tab) ──────────────────────────────────────
+(function() {
+  const dropZone    = document.getElementById('gen-drop-zone');
+  const input       = document.getElementById('gen-image');
+  const previewWrap = document.getElementById('gen-preview-wrap');
+  const previewGrid = document.getElementById('gen-preview-grid');
+  const fileNameEl  = document.getElementById('gen-file-name');
+
+  function showPreviews(files) {
+    previewGrid.innerHTML = '';
+    Array.from(files).forEach(file => {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      img.alt = file.name;
+      previewGrid.appendChild(img);
+    });
+    fileNameEl.textContent = files.length === 1
+      ? files[0].name + ' (' + (files[0].size / 1024).toFixed(1) + ' KB)'
+      : files.length + ' images selected';
+    previewWrap.style.display = 'block';
+  }
+
+  input.addEventListener('change', () => { if (input.files.length) showPreviews(input.files); });
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+      // Assign dropped files to the input via DataTransfer
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+      input.files = dt.files;
+      showPreviews(dt.files);
+    }
+  });
+})();
+
+// ── Checkboxes ────────────────────────────────────────────────────────────────
+document.querySelectorAll('input[name="sections"]').forEach(cb => {
+  const saved = load('imgdesc_sections', null);
+  if (saved !== null) cb.checked = saved.includes(cb.value);
+  cb.addEventListener('change', () => {
+    const checked = [...document.querySelectorAll('input[name="sections"]:checked')].map(c => c.value);
+    save('imgdesc_sections', checked);
+  });
+});
+document.getElementById('check-all-btn').addEventListener('click',  () => document.querySelectorAll('input[name="sections"]').forEach(cb => cb.checked = true));
+document.getElementById('check-none-btn').addEventListener('click', () => document.querySelectorAll('input[name="sections"]').forEach(cb => cb.checked = false));
+
+// ── Format radios ─────────────────────────────────────────────────────────────
+const savedFormat = load('imgdesc_format', 'plain');
+document.querySelectorAll('input[name="output_format"]').forEach(r => {
+  if (r.value === savedFormat) r.checked = true;
+  r.addEventListener('change', () => save('imgdesc_format', r.value));
+});
+
+// ── Describe sliders ──────────────────────────────────────────────────────────
+const DESC_DEFAULTS = { temperature: 0.4, top_p: 1.0, frequency_penalty: 0.1, max_tokens: 2048 };
+
+function sliderFill(input) {
+  const min = parseFloat(input.min), max = parseFloat(input.max), val = parseFloat(input.value);
+  const pct = ((val - min) / (max - min)) * 100;
+  input.style.background = `linear-gradient(to right, #6366f1 ${pct}%, #2e2e33 ${pct}%)`;
+}
+
+function initParam(id, displayId, decimals) {
+  const input   = document.getElementById(id);
+  const display = displayId ? document.getElementById(displayId) : null;
+  const saved   = load('imgdesc_param_' + id, null);
+  if (saved !== null) input.value = saved;
+  const update = () => {
+    if (display) display.textContent = parseFloat(input.value).toFixed(decimals);
+    if (input.type === 'range') sliderFill(input);
+    save('imgdesc_param_' + id, parseFloat(input.value));
+  };
+  input.addEventListener('input', update);
+  update();
+}
+initParam('temperature',       'temp-val', 2);
+initParam('top_p',             'topp-val', 2);
+initParam('frequency_penalty', 'freq-val', 2);
+initParam('max_tokens',        null,       0);
+
+document.getElementById('desc-param-reset-btn').addEventListener('click', () => {
+  Object.entries(DESC_DEFAULTS).forEach(([id, val]) => {
+    const el = document.getElementById(id); el.value = val; el.dispatchEvent(new Event('input'));
+  });
+});
+
+// ── Describe form submit ──────────────────────────────────────────────────────
+document.getElementById('describe-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  save('imgdesc_last_model', modelInput.value.trim());
+
+  const resultCard = document.getElementById('desc-result-card');
+  const spinner    = document.getElementById('desc-spinner');
+  const errorMsg   = document.getElementById('desc-error-msg');
+  const descOutput = document.getElementById('description-output');
+  const copyBtn    = document.getElementById('copy-btn');
+  const submitBtn  = document.getElementById('desc-submit-btn');
+
+  if (!descProvSelect.value) {
+    errorMsg.textContent = 'Select a provider first.'; errorMsg.style.display = 'block';
+    resultCard.style.display = 'block'; spinner.style.display = 'none';
+    return;
+  }
+
+  resultCard.style.display = 'block'; spinner.style.display = 'block';
+  errorMsg.style.display = 'none'; descOutput.textContent = ''; copyBtn.style.display = 'none';
+  submitBtn.disabled = true; submitBtn.textContent = 'Describing…';
+
+  try {
+    const data = new FormData(e.target);
+    const res  = await fetch('describe', { method: 'POST', body: data });
+    const json = await res.json();
+    if (!res.ok || json.error) { errorMsg.textContent = json.error || 'Unexpected error.'; errorMsg.style.display = 'block'; }
+    else { descOutput.textContent = json.description; copyBtn.style.display = 'inline-flex'; }
+  } catch (err) {
+    errorMsg.textContent = 'Network error: ' + err.message; errorMsg.style.display = 'block';
+  } finally {
+    spinner.style.display = 'none'; submitBtn.disabled = false; submitBtn.textContent = 'Describe Image';
+    refreshProviderModels('describe', descProvSelect.value);
+  }
+});
+
+document.getElementById('copy-btn').addEventListener('click', function() {
+  navigator.clipboard.writeText(document.getElementById('description-output').textContent).then(() => {
+    this.classList.add('copied'); this.textContent = 'Copied!';
+    setTimeout(() => { this.classList.remove('copied'); this.textContent = 'Copy'; }, 2000);
+  });
+});
+
+// ── Img2img form submit ───────────────────────────────────────────────────────
+document.getElementById('img2img-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  save('imgdesc_last_img_model', imgModelInput.value.trim());
+
+  const resultCard = document.getElementById('gen-result-card');
+  const spinner    = document.getElementById('gen-spinner');
+  const errorMsg   = document.getElementById('gen-error-msg');
+  const imagesWrap = document.getElementById('generated-images');
+  const submitBtn  = document.getElementById('gen-submit-btn');
+
+  if (!genProvSelect.value) {
+    errorMsg.textContent = 'Select a provider first.'; errorMsg.style.display = 'block';
+    resultCard.style.display = 'block'; spinner.style.display = 'none';
+    return;
+  }
+
+  resultCard.style.display = 'block'; spinner.style.display = 'block';
+  errorMsg.style.display = 'none'; imagesWrap.innerHTML = '';
+  submitBtn.disabled = true; submitBtn.textContent = 'Generating…';
+
+  try {
+    const data = new FormData(e.target);
+    const res  = await fetch('generate', { method: 'POST', body: data });
+    const json = await res.json();
+    if (!res.ok || json.error) {
+      errorMsg.textContent = json.error || 'Unexpected error.'; errorMsg.style.display = 'block';
+    } else {
+      json.images.forEach((b64, i) => {
+        const src      = 'data:image/png;base64,' + b64;
+        const filename = 'generated-' + (i + 1) + '.png';
+
+        // Show image with download link
+        const wrap = document.createElement('div');
+        wrap.className = 'gen-image-wrap';
+        const img = document.createElement('img');
+        img.src = src; img.alt = 'Generated image ' + (i + 1);
+        const dl = document.createElement('a');
+        dl.className = 'download-btn'; dl.href = src; dl.download = filename;
+        dl.textContent = 'Download';
+        wrap.appendChild(img); wrap.appendChild(dl);
+        imagesWrap.appendChild(wrap);
+
+        // Auto-download via programmatic click
+        const autoA = document.createElement('a');
+        autoA.href = src; autoA.download = filename;
+        document.body.appendChild(autoA);
+        autoA.click();
+        document.body.removeChild(autoA);
+      });
+    }
+  } catch (err) {
+    errorMsg.textContent = 'Network error: ' + err.message; errorMsg.style.display = 'block';
+  } finally {
+    spinner.style.display = 'none'; submitBtn.disabled = false; submitBtn.textContent = 'Generate Image';
+    refreshProviderModels('generate', genProvSelect.value);
+  }
+});
+
+// ── Inpaint / Outpaint tab ────────────────────────────────────────────────────
+(function() {
+  const dropZone   = document.getElementById('inp-drop-zone');
+  const fileInput  = document.getElementById('inp-image');
+  const canvasWrap = document.getElementById('inp-canvas-wrap');
+  const imgCanvas  = document.getElementById('inp-image-canvas');
+  const maskCanvas = document.getElementById('inp-mask-canvas');
+  const padPreview = document.getElementById('inp-pad-preview');
+  const fileNameEl = document.getElementById('inp-file-name');
+  const brushInput = document.getElementById('inp-brush');
+  const brushVal   = document.getElementById('inp-brush-val');
+  const clearBtn   = document.getElementById('inp-mask-clear');
+  const eraseBtn   = document.getElementById('inp-mask-erase');
+  const brushCard  = document.getElementById('inp-brush-card');
+  const padCard    = document.getElementById('inp-pad-card');
+  const modelInput = document.getElementById('inp_model');
+  const promptInput= document.getElementById('inp-prompt');
+  const resultCard = document.getElementById('inp-result-card');
+  const spinner    = document.getElementById('inp-spinner');
+  const errorMsg   = document.getElementById('inp-error-msg');
+  const imagesWrap = document.getElementById('inp-images');
+  const submitBtn  = document.getElementById('inp-submit-btn');
+  const modeRadios = document.querySelectorAll('#tab-inpaint input[name="mode"]');
+  const padIds = ['inp-pad-top','inp-pad-right','inp-pad-bottom','inp-pad-left'];
+
+  let sourceImage = null;
+  let erasing = false;
+  let drawing = false;
+
+  // Persist model + padding + prompt
+  modelInput.value = load('imgdesc_inp_model', 'google/nano-banana-pro/edit');
+  modelInput.addEventListener('input', () => save('imgdesc_inp_model', modelInput.value));
+  padIds.forEach(id => {
+    const el = document.getElementById(id);
+    const saved = load('imgdesc_' + id, null);
+    if (saved !== null) el.value = saved;
+    el.addEventListener('input', () => { save('imgdesc_' + id, el.value); drawPadPreview(); });
+  });
+  brushInput.value = load('imgdesc_inp_brush', 40);
+  brushVal.textContent = brushInput.value;
+  brushInput.addEventListener('input', () => {
+    brushVal.textContent = brushInput.value;
+    save('imgdesc_inp_brush', brushInput.value);
+  });
+
+  function loadFile(file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        sourceImage = img;
+        imgCanvas.width  = img.naturalWidth;
+        imgCanvas.height = img.naturalHeight;
+        maskCanvas.width = img.naturalWidth;
+        maskCanvas.height= img.naturalHeight;
+        padPreview.width = img.naturalWidth;
+        padPreview.height= img.naturalHeight;
+        imgCanvas.getContext('2d').drawImage(img, 0, 0);
+        maskCanvas.getContext('2d').clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+        canvasWrap.style.display = 'block';
+        fileNameEl.textContent = `${file.name} — ${img.naturalWidth}×${img.naturalHeight}`;
+        drawPadPreview();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) { fileInput.files = e.dataTransfer.files; loadFile(e.dataTransfer.files[0]); }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    maskCanvas.getContext('2d').clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+  });
+  eraseBtn.addEventListener('click', () => {
+    erasing = !erasing;
+    eraseBtn.textContent = 'Erase mode: ' + (erasing ? 'on' : 'off');
+    eraseBtn.classList.toggle('success', erasing);
+  });
+
+  function canvasPoint(e) {
+    const rect = maskCanvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (maskCanvas.width  / rect.width),
+      y: (e.clientY - rect.top)  * (maskCanvas.height / rect.height),
+    };
+  }
+  function stroke(p) {
+    const ctx = maskCanvas.getContext('2d');
+    const radius = parseFloat(brushInput.value) / 2;
+    ctx.save();
+    if (erasing) ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(255,80,80,0.55)';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  maskCanvas.addEventListener('pointerdown', e => {
+    if (!sourceImage || currentMode() !== 'inpaint') return;
+    drawing = true; maskCanvas.setPointerCapture(e.pointerId);
+    stroke(canvasPoint(e)); e.preventDefault();
+  });
+  maskCanvas.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    stroke(canvasPoint(e)); e.preventDefault();
+  });
+  maskCanvas.addEventListener('pointerup',    () => { drawing = false; });
+  maskCanvas.addEventListener('pointercancel',() => { drawing = false; });
+
+  function currentMode() {
+    return [...modeRadios].find(r => r.checked).value;
+  }
+  function drawPadPreview() {
+    if (!sourceImage) return;
+    const ctx = padPreview.getContext('2d');
+    ctx.clearRect(0, 0, padPreview.width, padPreview.height);
+    if (currentMode() !== 'outpaint') return;
+    // The pad preview overlays red stripes on the mask canvas's own coords —
+    // at image resolution the preview shows where the extended canvas will sit,
+    // drawn inward by a proportional border so the user sees direction/weighting.
+    const W = sourceImage.naturalWidth, H = sourceImage.naturalHeight;
+    const top    = +document.getElementById('inp-pad-top').value    || 0;
+    const right  = +document.getElementById('inp-pad-right').value  || 0;
+    const bottom = +document.getElementById('inp-pad-bottom').value || 0;
+    const left   = +document.getElementById('inp-pad-left').value   || 0;
+    const newW = W + left + right, newH = H + top + bottom;
+    // Draw a rectangle scaled to newW×newH, with the original image region marked.
+    // But the preview canvas is at W×H — we'll show arrows instead.
+    ctx.strokeStyle = 'rgba(99,102,241,0.9)';
+    ctx.setLineDash([8, 6]);
+    ctx.lineWidth = Math.max(2, Math.min(W, H) / 200);
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(99,102,241,0.18)';
+    const bar = Math.max(20, Math.min(W, H) / 20);
+    if (top)    ctx.fillRect(0, 0, W, bar);
+    if (bottom) ctx.fillRect(0, H - bar, W, bar);
+    if (left)   ctx.fillRect(0, 0, bar, H);
+    if (right)  ctx.fillRect(W - bar, 0, bar, H);
+    ctx.fillStyle = '#e2e2e6';
+    ctx.font = `${Math.max(14, W / 60)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`→ ${newW}×${newH} (pad ${top}/${right}/${bottom}/${left})`, W / 2, H - 10);
+  }
+
+  modeRadios.forEach(r => r.addEventListener('change', () => {
+    const m = currentMode();
+    brushCard.style.display = m === 'inpaint' ? '' : 'none';
+    padCard.style.display   = m === 'outpaint' ? '' : 'none';
+    maskCanvas.style.display = m === 'inpaint' ? '' : 'none';
+    padPreview.style.display = m === 'outpaint' ? '' : 'none';
+    drawPadPreview();
+  }));
+
+  // Build image + mask blobs based on mode.
+  function buildBlobs() {
+    return new Promise((resolve, reject) => {
+      if (!sourceImage) return reject(new Error('No source image'));
+      const m = currentMode();
+      const W = sourceImage.naturalWidth, H = sourceImage.naturalHeight;
+
+      if (m === 'inpaint') {
+        const src = document.createElement('canvas');
+        src.width = W; src.height = H;
+        src.getContext('2d').drawImage(sourceImage, 0, 0);
+
+        const maskOut = document.createElement('canvas');
+        maskOut.width = W; maskOut.height = H;
+        const mctx = maskOut.getContext('2d');
+        mctx.fillStyle = '#000'; mctx.fillRect(0, 0, W, H);
+        const drawn = maskCanvas.getContext('2d').getImageData(0, 0, W, H).data;
+        const out = mctx.getImageData(0, 0, W, H);
+        let painted = 0;
+        for (let i = 0; i < drawn.length; i += 4) {
+          if (drawn[i + 3] > 10) {
+            out.data[i] = 255; out.data[i+1] = 255; out.data[i+2] = 255; out.data[i+3] = 255;
+            painted++;
+          }
+        }
+        if (painted === 0) return reject(new Error('Mask is empty — paint the area you want regenerated.'));
+        mctx.putImageData(out, 0, 0);
+
+        src.toBlob(imgBlob => {
+          maskOut.toBlob(mBlob => resolve({ img: imgBlob, mask: mBlob, imgName: 'image.jpg', maskName: 'mask.png' }), 'image/png');
+        }, 'image/jpeg', 0.92);
+        return;
+      }
+
+      // outpaint
+      const top    = +document.getElementById('inp-pad-top').value    || 0;
+      const right  = +document.getElementById('inp-pad-right').value  || 0;
+      const bottom = +document.getElementById('inp-pad-bottom').value || 0;
+      const left   = +document.getElementById('inp-pad-left').value   || 0;
+      if (top + right + bottom + left === 0) return reject(new Error('Padding must be non-zero on at least one side.'));
+      const newW = W + left + right, newH = H + top + bottom;
+
+      const padded = document.createElement('canvas');
+      padded.width = newW; padded.height = newH;
+      const pctx = padded.getContext('2d');
+      pctx.fillStyle = '#7d7d7d';
+      pctx.fillRect(0, 0, newW, newH);
+      pctx.drawImage(sourceImage, left, top);
+
+      const maskOut = document.createElement('canvas');
+      maskOut.width = newW; maskOut.height = newH;
+      const mctx = maskOut.getContext('2d');
+      mctx.fillStyle = '#fff'; mctx.fillRect(0, 0, newW, newH);
+      mctx.fillStyle = '#000'; mctx.fillRect(left, top, W, H);
+
+      padded.toBlob(imgBlob => {
+        maskOut.toBlob(mBlob => resolve({ img: imgBlob, mask: mBlob, imgName: 'padded.jpg', maskName: 'mask.png' }), 'image/png');
+      }, 'image/jpeg', 0.92);
+    });
+  }
+
+  document.getElementById('inpaint-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const inpProv = document.getElementById('inp-provider');
+    if (!inpProv.value) {
+      errorMsg.textContent = 'Select an AtlasCloud provider first.'; errorMsg.style.display = 'block';
+      resultCard.style.display = 'block'; spinner.style.display = 'none';
+      return;
+    }
+    resultCard.style.display = 'block'; spinner.style.display = 'block';
+    errorMsg.style.display = 'none'; imagesWrap.innerHTML = '';
+    submitBtn.disabled = true; submitBtn.textContent = 'Applying…';
+
+    try {
+      const { img, mask, imgName, maskName } = await buildBlobs();
+      const data = new FormData();
+      data.set('provider_id', inpProv.value);
+      data.set('model',   modelInput.value.trim());
+      data.set('prompt',  promptInput.value.trim());
+      data.set('mode',    currentMode());
+      data.append('image', img, imgName);
+      data.append('mask',  mask, maskName);
+
+      const res  = await fetch('inpaint', { method: 'POST', body: data });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        errorMsg.textContent = json.error || 'Unexpected error.'; errorMsg.style.display = 'block';
+      } else {
+        (json.images || []).forEach((b64, i) => {
+          const src = 'data:image/png;base64,' + b64;
+          const filename = 'inpaint-' + (i + 1) + '.png';
+          const wrap = document.createElement('div');
+          wrap.className = 'gen-image-wrap';
+          const imgEl = document.createElement('img');
+          imgEl.src = src; imgEl.alt = 'Result ' + (i + 1);
+          const dl = document.createElement('a');
+          dl.className = 'download-btn'; dl.href = src; dl.download = filename;
+          dl.textContent = 'Download';
+          wrap.appendChild(imgEl); wrap.appendChild(dl);
+          imagesWrap.appendChild(wrap);
+        });
+      }
+    } catch (err) {
+      errorMsg.textContent = err.message; errorMsg.style.display = 'block';
+    } finally {
+      spinner.style.display = 'none'; submitBtn.disabled = false; submitBtn.textContent = 'Apply';
+      refreshProviderModels('inpaint', document.getElementById('inp-provider').value);
+    }
+  });
+})();
+
+// ── Prompt history modal ─────────────────────────────────────────────────────
+(function() {
+  const modal       = document.getElementById('history-modal');
+  const closeBtn    = document.getElementById('history-close');
+  const searchInput = document.getElementById('history-search');
+  const allTypesCb  = document.getElementById('history-all-types');
+  const listEl      = document.getElementById('history-list');
+  const footerEl    = document.getElementById('history-footer');
+
+  let openedFor = 'describe';
+  let lastId = null;
+  let totalLoaded = 0;
+  let searchTimer = null;
+  let loading = false;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function relTime(iso) {
+    if (!iso) return '';
+    const t = new Date(iso.replace(' ', 'T') + 'Z').getTime();
+    if (isNaN(t)) return '';
+    const secs = Math.floor((Date.now() - t) / 1000);
+    if (secs < 60)     return secs + 's ago';
+    if (secs < 3600)   return Math.floor(secs / 60)   + 'm ago';
+    if (secs < 86400)  return Math.floor(secs / 3600) + 'h ago';
+    if (secs < 604800) return Math.floor(secs / 86400) + 'd ago';
+    return new Date(t).toLocaleDateString();
+  }
+
+  function makeBtn(text, variant, handler) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn-sm' + (variant ? ' ' + variant : '');
+    b.textContent = text;
+    b.addEventListener('click', e => { e.stopPropagation(); handler(b); });
+    return b;
+  }
+
+  function renderItem(it) {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+      <div class="history-meta">
+        <span class="history-type-badge ${it.type}">${it.type}</span>
+        ${it.model ? `<span>${escapeHtml(it.model)}</span>` : ''}
+        <span>${relTime(it.created_at)}</span>
+      </div>
+      <div class="history-prompt-short"></div>
+      <div class="history-full"></div>
+    `;
+    div.querySelector('.history-prompt-short').textContent = it.prompt;
+    const fullBox = div.querySelector('.history-full');
+
+    div.addEventListener('click', e => {
+      if (e.target.closest('.history-actions')) return;
+      const isOpen = div.classList.toggle('open');
+      fullBox.style.display = isOpen ? 'block' : 'none';
+      if (isOpen && !fullBox.dataset.built) {
+        const pre = document.createElement('div');
+        pre.className = 'history-prompt-full';
+        pre.textContent = it.prompt;
+        fullBox.appendChild(pre);
+        if (it.negative_prompt) {
+          const neg = document.createElement('div');
+          neg.className = 'history-prompt-full';
+          neg.style.marginTop = '0.4rem';
+          neg.innerHTML = '<strong style="color:#f87171">Negative:</strong> ' + escapeHtml(it.negative_prompt);
+          fullBox.appendChild(neg);
+        }
+        const acts = document.createElement('div');
+        acts.className = 'history-actions';
+        acts.append(
+          makeBtn('Use', '', () => applyItem(it)),
+          makeBtn('Copy', '', async b => {
+            await navigator.clipboard.writeText(it.prompt);
+            b.textContent = 'Copied!'; setTimeout(() => b.textContent = 'Copy', 1500);
+          }),
+          makeBtn('Delete', 'danger', async () => {
+            if (!confirm('Delete this prompt?')) return;
+            await fetch('api/prompts/' + it.id, { method: 'DELETE' });
+            div.remove();
+          }),
+        );
+        fullBox.appendChild(acts);
+        fullBox.dataset.built = '1';
+      }
+    });
+    listEl.appendChild(div);
+  }
+
+  async function loadPage({ append = false } = {}) {
+    if (loading) return;
+    loading = true;
+    footerEl.textContent = 'Loading…';
+    try {
+      const params = new URLSearchParams();
+      if (!allTypesCb.checked) params.set('type', openedFor);
+      const q = searchInput.value.trim();
+      if (q) params.set('q', q);
+      if (append && lastId != null) params.set('before_id', lastId);
+      params.set('limit', '30');
+
+      const json = await (await fetch('api/prompts?' + params)).json();
+      if (!append) { listEl.innerHTML = ''; totalLoaded = 0; lastId = null; }
+      (json.items || []).forEach(renderItem);
+      totalLoaded += (json.items || []).length;
+      if (json.items && json.items.length) lastId = json.items[json.items.length - 1].id;
+
+      footerEl.innerHTML = '';
+      if (totalLoaded === 0) {
+        listEl.innerHTML = '<div style="padding:2.5rem 1rem; text-align:center; color:#555; font-size:0.88rem;">No matching prompts.</div>';
+      } else if (json.has_more) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'btn-sm'; btn.textContent = 'Load more';
+        btn.addEventListener('click', () => loadPage({ append: true }));
+        footerEl.appendChild(btn);
+      } else {
+        footerEl.textContent = totalLoaded + ' prompt' + (totalLoaded === 1 ? '' : 's');
+      }
+    } catch (err) {
+      footerEl.textContent = 'Error: ' + err.message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  function _selectProvIfAvailable(select, pid) {
+    if (!pid) return;
+    const s = String(pid);
+    if ([...select.options].some(o => o.value === s)) {
+      select.value = s;
+      select.dispatchEvent(new Event('change'));
+    }
+  }
+
+  function applyItem(it) {
+    const meta = it.metadata || {};
+    if (it.type === 'describe') {
+      const secs = new Set(meta.sections || []);
+      if (secs.size) {
+        document.querySelectorAll('input[name="sections"]').forEach(cb => cb.checked = secs.has(cb.value));
+      }
+      if (meta.output_format) {
+        document.querySelectorAll('input[name="output_format"]').forEach(r => r.checked = r.value === meta.output_format);
+      }
+      if (it.model) document.getElementById('model').value = it.model;
+      _selectProvIfAvailable(document.getElementById('desc-provider'), meta.provider_id);
+      document.querySelector('[data-tab="describe"]').click();
+    } else if (it.type === 'generate') {
+      document.getElementById('gen-prompt').value = it.prompt;
+      document.getElementById('gen-negative-prompt').value = it.negative_prompt || '';
+      if (it.model) document.getElementById('img_model').value = it.model;
+      if (meta.size)    document.getElementById('gen-size').value    = meta.size;
+      if (meta.quality) document.getElementById('gen-quality').value = meta.quality;
+      if (meta.style)   document.getElementById('gen-style').value   = meta.style;
+      _selectProvIfAvailable(document.getElementById('gen-provider'), meta.provider_id);
+      document.querySelector('[data-tab="img2img"]').click();
+    } else if (it.type === 'inpaint') {
+      document.getElementById('inp-prompt').value = it.prompt;
+      if (it.model) document.getElementById('inp_model').value = it.model;
+      if (meta.mode) {
+        document.querySelectorAll('#tab-inpaint input[name="mode"]').forEach(r => {
+          if (r.value === meta.mode) { r.checked = true; r.dispatchEvent(new Event('change')); }
+        });
+      }
+      _selectProvIfAvailable(document.getElementById('inp-provider'), meta.provider_id);
+      document.querySelector('[data-tab="inpaint"]').click();
+    }
+    closeModal();
+  }
+
+  function openModal(type) {
+    openedFor = type || 'describe';
+    searchInput.value = '';
+    allTypesCb.checked = false;
+    lastId = null;
+    totalLoaded = 0;
+    listEl.innerHTML = '';
+    modal.classList.add('open');
+    loadPage();
+    setTimeout(() => searchInput.focus(), 40);
+  }
+  function closeModal() { modal.classList.remove('open'); }
+
+  closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+  });
+  allTypesCb.addEventListener('change', () => { lastId = null; loadPage(); });
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { lastId = null; loadPage(); }, 250);
+  });
+  listEl.addEventListener('scroll', () => {
+    if (loading) return;
+    if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 80) {
+      const loadMoreBtn = footerEl.querySelector('button');
+      if (loadMoreBtn) loadMoreBtn.click();
+    }
+  });
+  document.querySelectorAll('.history-btn').forEach(btn => {
+    btn.addEventListener('click', () => openModal(btn.dataset.history));
+  });
+})();
+</script>
+</body>
+</html>
