@@ -1,6 +1,6 @@
-# image-describe
+# AI Image Studio
 
-A simple web app that uses a vision model to produce character-focused descriptions of uploaded images — extracting people, their physical attributes, clothing, and accessories.
+A simple web app for describing and generating images with AI. Uses a vision model to produce character-focused descriptions of uploaded images, and an image model to generate or edit images from prompts.
 
 ## Requirements
 
@@ -55,7 +55,7 @@ Any provider that exposes an OpenAI-compatible `/chat/completions` endpoint with
 | Provider | Base URL | Example model |
 |----------|----------|---------------|
 | OpenAI | *(leave blank)* | `gpt-4o` |
-| Anthropic | `https://api.anthropic.com/v1` | `claude-opus-4-5` |
+| Anthropic | `https://api.anthropic.com/v1` | `claude-opus-4-7` |
 | Ollama (local) | `http://localhost:11434/v1` | `llava` |
 | OpenRouter | `https://openrouter.ai/api/v1` | `openai/gpt-4o` |
 

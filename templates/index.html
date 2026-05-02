@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Image Describe</title>
+  <title>AI Image Studio</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -272,7 +272,6 @@
     }
     .history-type-badge.describe  { color: #818cf8; }
     .history-type-badge.generate  { color: #4ade80; }
-    .history-type-badge.inpaint   { color: #f59e0b; }
     .history-prompt-short {
       color: #ccc; font-size: 0.87rem; line-height: 1.45;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -294,8 +293,28 @@
     }
     .history-btn {
       padding: 0.2rem 0.55rem; font-size: 0.72rem;
-      text-transform: none; letter-spacing: 0; margin-left: auto;
+      text-transform: none; letter-spacing: 0;
     }
+
+    /* ── Improve-prompt modal (chat) ── */
+    .chat-msg {
+      padding: 0.55rem 0.75rem; border-radius: 8px;
+      margin: 0.4rem 0; max-width: 88%;
+      font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap;
+    }
+    .chat-msg.user      { background: #1f1f24; border: 1px solid #2e2e33; color: #e2e2e6; margin-left: auto; }
+    .chat-msg.assistant { background: #0f0f11; border: 1px solid #26262b; color: #d4d4d8; }
+    .chat-msg.final     { background: #15291b; border: 1px solid #2f5a3b; color: #d4f4d8; }
+    .chat-msg.system    { background: transparent; color: #777; font-style: italic; font-size: 0.78rem; text-align: center; }
+    #improve-modal .modal-controls { gap: 0.5rem; flex-wrap: wrap; }
+    #improve-modal .modal-controls select { flex: 1 1 200px; }
+    #improve-modal .modal-controls input[type="text"] { flex: 1 1 200px; }
+    #improve-modal .modal-footer {
+      flex-direction: column; align-items: stretch; gap: 0.5rem;
+      text-align: left; min-height: auto;
+    }
+    #improve-input { min-height: 56px; }
+    #improve-modal .footer-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
     .card-head-row {
       display: flex; justify-content: space-between; align-items: center;
       margin-bottom: 1.1rem;
@@ -318,8 +337,8 @@
 <body>
 
 <header>
-  <h1>Image Describe</h1>
-  <p>Vision model tools</p>
+  <h1>AI Image Studio</h1>
+  <p>Describe and generate images with AI</p>
 </header>
 
 <!-- ── Shared: Providers ── -->
@@ -367,7 +386,6 @@
 <div class="tabs" style="margin-top:1.2rem;">
   <button class="tab-btn active" data-tab="describe">Describe</button>
   <button class="tab-btn" data-tab="img2img">Generate</button>
-  <button class="tab-btn" data-tab="inpaint">Inpaint / Outpaint</button>
 </div>
 
 <!-- ════════════════════════════════════════════════════
@@ -524,7 +542,10 @@
     <div class="field" style="margin-top:1rem;">
       <div class="label-row">
         <label>Prompt</label>
-        <button type="button" class="btn-sm history-btn" data-history="generate">History</button>
+        <div style="display:flex; gap:0.4rem; margin-left:auto;">
+          <button type="button" class="btn-sm" id="improve-open-btn">Improve</button>
+          <button type="button" class="btn-sm history-btn" data-history="generate">History</button>
+        </div>
       </div>
       <textarea name="prompt" id="gen-prompt" placeholder="Describe what to generate or how to transform the image…" required></textarea>
     </div>
@@ -615,157 +636,6 @@
 </div><!-- #tab-img2img -->
 
 
-<!-- ════════════════════════════════════════════════════
-     TAB: INPAINT / OUTPAINT
-     ════════════════════════════════════════════════════ -->
-<div id="tab-inpaint" style="display:none;">
-<form id="inpaint-form">
-
-  <div class="card">
-    <h2>Edit Model (AtlasCloud)</h2>
-    <p style="color:#666; font-size:0.78rem; margin-bottom:0.7rem; line-height:1.5;">
-      The mask goes to <code style="color:#999">images[0]</code> (black = preserved, white = regenerate),
-      the source image to <code style="color:#999">images[1]</code>. None of the current edit models
-      have a native mask parameter — the prompt explains the convention.
-    </p>
-    <div class="field">
-      <label>Provider <span>(must be an AtlasCloud provider)</span></label>
-      <select id="inp-provider" name="provider_id" required>
-        <option value="">— select a provider —</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Model</label>
-      <input type="text" id="inp_model" name="model" placeholder="google/nano-banana-pro/edit"
-             list="inp-model-datalist" autocomplete="off" required />
-      <datalist id="inp-model-datalist">
-        <option value="google/nano-banana-pro/edit"></option>
-        <option value="google/nano-banana-pro/edit-ultra"></option>
-        <option value="google/nano-banana/edit"></option>
-        <option value="google/nano-banana-2/edit"></option>
-        <option value="bytedance/seedream-v4.5/edit"></option>
-        <option value="bytedance/seedream-v5.0-lite/edit"></option>
-        <option value="qwen/qwen-image-2.0/edit"></option>
-        <option value="qwen/qwen-image-2.0-pro/edit"></option>
-        <option value="alibaba/qwen-image/edit-plus"></option>
-        <option value="alibaba/wan-2.7/image-edit"></option>
-        <option value="openai/gpt-image-1.5/edit"></option>
-        <option value="black-forest-labs/flux-kontext-dev"></option>
-      </datalist>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Mode</h2>
-    <div class="radio-group">
-      <label class="radio-item"><input type="radio" name="mode" value="inpaint" checked /><span class="dot"></span>Inpaint <span style="color:#555;font-size:0.79rem;margin-left:0.3rem;">(paint mask)</span></label>
-      <label class="radio-item"><input type="radio" name="mode" value="outpaint" /><span class="dot"></span>Outpaint <span style="color:#555;font-size:0.79rem;margin-left:0.3rem;">(extend canvas)</span></label>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Source Image</h2>
-    <div class="drop-zone" id="inp-drop-zone">
-      <input type="file" id="inp-image" accept=".png,.jpg,.jpeg,.webp" />
-      <div class="icon">&#128444;</div>
-      <p><strong>Click to upload</strong> or drag &amp; drop</p>
-      <p>PNG, JPG, JPEG, WEBP</p>
-    </div>
-    <div id="inp-canvas-wrap" style="display:none; margin-top:1rem;">
-      <div id="inp-canvas-stack" style="position:relative; border:1px solid #2a2a2e; border-radius:8px; overflow:hidden; background:#0a0a0c; line-height:0;">
-        <canvas id="inp-image-canvas" style="display:block; max-width:100%; height:auto;"></canvas>
-        <canvas id="inp-mask-canvas"  style="position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair;"></canvas>
-        <canvas id="inp-pad-preview"  style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none;"></canvas>
-      </div>
-      <div class="file-name" id="inp-file-name"></div>
-    </div>
-  </div>
-
-  <div class="card" id="inp-brush-card">
-    <h2>Mask Brush</h2>
-    <div class="param-row">
-      <div class="param-header">
-        <span class="param-name">Brush size<span class="param-hint">pixels (at image resolution)</span></span>
-        <span class="param-value" id="inp-brush-val">40</span>
-      </div>
-      <input type="range" id="inp-brush" min="5" max="400" step="1" value="40" />
-    </div>
-    <div style="display:flex; gap:0.5rem; margin-top:0.7rem;">
-      <button type="button" class="btn-sm" id="inp-mask-clear">Clear mask</button>
-      <button type="button" class="btn-sm" id="inp-mask-erase">Erase mode: off</button>
-    </div>
-  </div>
-
-  <div class="card" id="inp-pad-card" style="display:none;">
-    <h2>Outpaint Padding</h2>
-    <p style="color:#666; font-size:0.78rem; margin-bottom:0.7rem;">
-      Pixels to add on each side. Padded area is filled neutral grey and marked as the masked region.
-    </p>
-    <div class="gen-params-grid">
-      <div class="field" style="margin-bottom:0;">
-        <label>Top px</label>
-        <input type="number" id="inp-pad-top" min="0" step="16" value="256" />
-      </div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Right px</label>
-        <input type="number" id="inp-pad-right" min="0" step="16" value="256" />
-      </div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Bottom px</label>
-        <input type="number" id="inp-pad-bottom" min="0" step="16" value="256" />
-      </div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Left px</label>
-        <input type="number" id="inp-pad-left" min="0" step="16" value="256" />
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head-row">
-      <h2>Prompt</h2>
-      <button type="button" class="btn-sm history-btn" data-history="inpaint">History</button>
-    </div>
-    <div class="field">
-      <label>What should the masked area become?</label>
-      <textarea id="inp-prompt" name="prompt" placeholder="e.g. replace with a wooden chair, or a sunset sky extending into the new canvas…" required></textarea>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Post-Processing</h2>
-    <label class="checkbox-item inline-toggle">
-      <input type="checkbox" id="inp-apply-composite" name="apply_composite" />
-      <span class="box"></span>Preview mask composite
-    </label>
-    <p class="subtle-copy" style="margin-bottom:0.9rem;">
-      Toggle between the raw model output and a composited preview that reapplies the processed mask over the original.
-      This lets you compare leakage and edge quality without regenerating.
-    </p>
-    <div class="gen-params-grid">
-      <div class="field" style="margin-bottom:0;">
-        <label>Mask expand px <span>(grow the white region before compositing)</span></label>
-        <input type="number" id="inp-mask-expand" name="mask_expand_px" min="0" max="64" step="1" value="0" />
-      </div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Mask feather px <span>(soften hard edges)</span></label>
-        <input type="number" id="inp-mask-feather" name="mask_feather_px" min="0" max="32" step="0.5" value="0" />
-      </div>
-    </div>
-  </div>
-
-  <button type="submit" class="submit-btn" id="inp-submit-btn">Apply</button>
-</form>
-
-<div class="card result-card" id="inp-result-card">
-  <h2>Result</h2>
-  <div class="spinner" id="inp-spinner"></div>
-  <div class="error-msg" id="inp-error-msg"></div>
-  <div class="generated-images" id="inp-images"></div>
-</div>
-</div><!-- #tab-inpaint -->
-
-
 <!-- ── Prompt history modal (shared) ── -->
 <div id="history-modal" class="modal-backdrop">
   <div class="modal">
@@ -786,6 +656,33 @@
 </div>
 
 
+<!-- ── Improve-prompt modal ── -->
+<div id="improve-modal" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Improve prompt</h3>
+      <button type="button" class="btn-sm" id="improve-close">Close</button>
+    </div>
+    <div class="modal-controls">
+      <select id="improve-provider">
+        <option value="">— LLM provider —</option>
+      </select>
+      <input type="text" id="improve-model" list="improve-model-datalist"
+             placeholder="model (e.g. gpt-4o-mini)" autocomplete="off" />
+      <datalist id="improve-model-datalist"></datalist>
+    </div>
+    <div class="modal-list" id="improve-chat"></div>
+    <div class="modal-footer">
+      <textarea id="improve-input" placeholder="Type your reply…"></textarea>
+      <div class="footer-actions">
+        <button type="button" class="btn-sm" id="improve-use" style="display:none;">Use this prompt</button>
+        <button type="button" class="btn-sm" id="improve-send">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <script>
 // ── Storage ──────────────────────────────────────────────────────────────────
 function load(key, fallback) {
@@ -795,7 +692,7 @@ function load(key, fallback) {
 function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
-const TAB_IDS = { describe: 'tab-describe', img2img: 'tab-img2img', inpaint: 'tab-inpaint' };
+const TAB_IDS = { describe: 'tab-describe', img2img: 'tab-img2img' };
 const tabBtns = document.querySelectorAll('.tab-btn');
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -827,7 +724,6 @@ const provDelBtn   = document.getElementById('prov-delete-btn');
 // Per-tab provider dropdowns
 const descProvSelect = document.getElementById('desc-provider');
 const genProvSelect  = document.getElementById('gen-provider');
-const inpProvSelect  = document.getElementById('inp-provider');
 
 let providers = [];   // full list
 let editingId = null; // provider id currently loaded in the editor
@@ -865,19 +761,15 @@ function renderAllProvSelects() {
 
   fillProvSelect(descProvSelect);
   fillProvSelect(genProvSelect);
-  fillProvSelect(inpProvSelect, { filterKinds: ['atlascloud'] });
 
   // Restore per-tab selections from localStorage
   const dSaved = load('imgdesc_desc_provider_id', '');
   const gSaved = load('imgdesc_gen_provider_id', '');
-  const iSaved = load('imgdesc_inp_provider_id', '');
   if (dSaved && [...descProvSelect.options].some(o => o.value === String(dSaved))) descProvSelect.value = String(dSaved);
   if (gSaved && [...genProvSelect.options].some(o  => o.value === String(gSaved))) genProvSelect.value  = String(gSaved);
-  if (iSaved && [...inpProvSelect.options].some(o  => o.value === String(iSaved))) inpProvSelect.value  = String(iSaved);
 
   refreshProviderModels('describe', descProvSelect.value);
   refreshProviderModels('generate', genProvSelect.value);
-  refreshProviderModels('inpaint',  inpProvSelect.value);
 
   if (typeof updateGenAdvancedVisibility === 'function') updateGenAdvancedVisibility();
 }
@@ -950,16 +842,11 @@ genProvSelect.addEventListener('change', () => {
   save('imgdesc_gen_provider_id', genProvSelect.value);
   refreshProviderModels('generate', genProvSelect.value);
 });
-inpProvSelect.addEventListener('change', () => {
-  save('imgdesc_inp_provider_id', inpProvSelect.value);
-  refreshProviderModels('inpaint', inpProvSelect.value);
-});
 
 // ── Per-provider model datalists ──────────────────────────────────────────────
 const DATALIST_FOR = {
   describe: 'desc-model-datalist',
   generate: 'gen-model-datalist',
-  inpaint:  'inp-model-datalist',
 };
 function renderDatalist(datalist, items) {
   const existing = new Set([...datalist.options].map(o => o.value));
@@ -1234,407 +1121,6 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
   }
 });
 
-// ── Inpaint / Outpaint tab ────────────────────────────────────────────────────
-(function() {
-  const dropZone   = document.getElementById('inp-drop-zone');
-  const fileInput  = document.getElementById('inp-image');
-  const canvasWrap = document.getElementById('inp-canvas-wrap');
-  const imgCanvas  = document.getElementById('inp-image-canvas');
-  const maskCanvas = document.getElementById('inp-mask-canvas');
-  const padPreview = document.getElementById('inp-pad-preview');
-  const fileNameEl = document.getElementById('inp-file-name');
-  const brushInput = document.getElementById('inp-brush');
-  const brushVal   = document.getElementById('inp-brush-val');
-  const clearBtn   = document.getElementById('inp-mask-clear');
-  const eraseBtn   = document.getElementById('inp-mask-erase');
-  const brushCard  = document.getElementById('inp-brush-card');
-  const padCard    = document.getElementById('inp-pad-card');
-  const modelInput = document.getElementById('inp_model');
-  const promptInput= document.getElementById('inp-prompt');
-  const resultCard = document.getElementById('inp-result-card');
-  const spinner    = document.getElementById('inp-spinner');
-  const errorMsg   = document.getElementById('inp-error-msg');
-  const imagesWrap = document.getElementById('inp-images');
-  const submitBtn  = document.getElementById('inp-submit-btn');
-  const modeRadios = document.querySelectorAll('#tab-inpaint input[name="mode"]');
-  const padIds = ['inp-pad-top','inp-pad-right','inp-pad-bottom','inp-pad-left'];
-  const compositeCb = document.getElementById('inp-apply-composite');
-  const maskExpandInput = document.getElementById('inp-mask-expand');
-  const maskFeatherInput = document.getElementById('inp-mask-feather');
-
-  let sourceImage = null;
-  let erasing = false;
-  let drawing = false;
-  let lastInpaintRawResults = null;
-
-  // Persist model + padding + prompt
-  modelInput.value = load('imgdesc_inp_model', 'google/nano-banana-pro/edit');
-  modelInput.addEventListener('input', () => save('imgdesc_inp_model', modelInput.value));
-  padIds.forEach(id => {
-    const el = document.getElementById(id);
-    const saved = load('imgdesc_' + id, null);
-    if (saved !== null) el.value = saved;
-    el.addEventListener('input', () => { save('imgdesc_' + id, el.value); drawPadPreview(); renderInpaintResults(); });
-  });
-  brushInput.value = load('imgdesc_inp_brush', 40);
-  brushVal.textContent = brushInput.value;
-  brushInput.addEventListener('input', () => {
-    brushVal.textContent = brushInput.value;
-    save('imgdesc_inp_brush', brushInput.value);
-  });
-  compositeCb.checked = load('imgdesc_inp_apply_composite', true);
-  compositeCb.addEventListener('change', () => {
-    save('imgdesc_inp_apply_composite', compositeCb.checked);
-    renderInpaintResults();
-  });
-  maskExpandInput.value = load('imgdesc_inp_mask_expand', 0);
-  maskExpandInput.addEventListener('input', () => {
-    save('imgdesc_inp_mask_expand', maskExpandInput.value);
-    renderInpaintResults();
-  });
-  maskFeatherInput.value = load('imgdesc_inp_mask_feather', 0);
-  maskFeatherInput.addEventListener('input', () => {
-    save('imgdesc_inp_mask_feather', maskFeatherInput.value);
-    renderInpaintResults();
-  });
-
-  function loadFile(file) {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new Image();
-      img.onload = () => {
-        sourceImage = img;
-        imgCanvas.width  = img.naturalWidth;
-        imgCanvas.height = img.naturalHeight;
-        maskCanvas.width = img.naturalWidth;
-        maskCanvas.height= img.naturalHeight;
-        padPreview.width = img.naturalWidth;
-        padPreview.height= img.naturalHeight;
-        imgCanvas.getContext('2d').drawImage(img, 0, 0);
-        maskCanvas.getContext('2d').clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-        lastInpaintRawResults = null;
-        imagesWrap.innerHTML = '';
-        resultCard.style.display = 'none';
-        canvasWrap.style.display = 'block';
-        fileNameEl.textContent = `${file.name} — ${img.naturalWidth}×${img.naturalHeight}`;
-        drawPadPreview();
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
-  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    if (e.dataTransfer.files[0]) { fileInput.files = e.dataTransfer.files; loadFile(e.dataTransfer.files[0]); }
-  });
-
-  clearBtn.addEventListener('click', () => {
-    maskCanvas.getContext('2d').clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-    renderInpaintResults();
-  });
-  eraseBtn.addEventListener('click', () => {
-    erasing = !erasing;
-    eraseBtn.textContent = 'Erase mode: ' + (erasing ? 'on' : 'off');
-    eraseBtn.classList.toggle('success', erasing);
-  });
-
-  function canvasPoint(e) {
-    const rect = maskCanvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (maskCanvas.width  / rect.width),
-      y: (e.clientY - rect.top)  * (maskCanvas.height / rect.height),
-    };
-  }
-  function stroke(p) {
-    const ctx = maskCanvas.getContext('2d');
-    const radius = parseFloat(brushInput.value) / 2;
-    ctx.save();
-    if (erasing) ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(255,80,80,0.55)';
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-  maskCanvas.addEventListener('pointerdown', e => {
-    if (!sourceImage || currentMode() !== 'inpaint') return;
-    drawing = true; maskCanvas.setPointerCapture(e.pointerId);
-    stroke(canvasPoint(e)); e.preventDefault();
-  });
-  maskCanvas.addEventListener('pointermove', e => {
-    if (!drawing) return;
-    stroke(canvasPoint(e)); e.preventDefault();
-  });
-  maskCanvas.addEventListener('pointerup',    () => { drawing = false; renderInpaintResults(); });
-  maskCanvas.addEventListener('pointercancel',() => { drawing = false; renderInpaintResults(); });
-
-  function currentMode() {
-    return [...modeRadios].find(r => r.checked).value;
-  }
-  function buildEditAssets() {
-    if (!sourceImage) throw new Error('No source image');
-    const m = currentMode();
-    const W = sourceImage.naturalWidth, H = sourceImage.naturalHeight;
-
-    if (m === 'inpaint') {
-      const src = document.createElement('canvas');
-      src.width = W; src.height = H;
-      src.getContext('2d').drawImage(sourceImage, 0, 0);
-
-      const maskOut = document.createElement('canvas');
-      maskOut.width = W; maskOut.height = H;
-      const mctx = maskOut.getContext('2d');
-      mctx.fillStyle = '#000';
-      mctx.fillRect(0, 0, W, H);
-      const drawn = maskCanvas.getContext('2d').getImageData(0, 0, W, H).data;
-      const out = mctx.getImageData(0, 0, W, H);
-      let painted = 0;
-      for (let i = 0; i < drawn.length; i += 4) {
-        if (drawn[i + 3] > 10) {
-          out.data[i] = 255;
-          out.data[i + 1] = 255;
-          out.data[i + 2] = 255;
-          out.data[i + 3] = 255;
-          painted++;
-        }
-      }
-      mctx.putImageData(out, 0, 0);
-      return { srcCanvas: src, maskCanvas: maskOut, emptyMask: painted === 0 };
-    }
-
-    const top    = +document.getElementById('inp-pad-top').value    || 0;
-    const right  = +document.getElementById('inp-pad-right').value  || 0;
-    const bottom = +document.getElementById('inp-pad-bottom').value || 0;
-    const left   = +document.getElementById('inp-pad-left').value   || 0;
-    if (top + right + bottom + left === 0) throw new Error('Padding must be non-zero on at least one side.');
-    const newW = W + left + right, newH = H + top + bottom;
-
-    const padded = document.createElement('canvas');
-    padded.width = newW; padded.height = newH;
-    const pctx = padded.getContext('2d');
-    pctx.fillStyle = '#7d7d7d';
-    pctx.fillRect(0, 0, newW, newH);
-    pctx.drawImage(sourceImage, left, top);
-
-    const maskOut = document.createElement('canvas');
-    maskOut.width = newW; maskOut.height = newH;
-    const mctx = maskOut.getContext('2d');
-    mctx.fillStyle = '#fff';
-    mctx.fillRect(0, 0, newW, newH);
-    mctx.fillStyle = '#000';
-    mctx.fillRect(left, top, W, H);
-
-    return { srcCanvas: padded, maskCanvas: maskOut, emptyMask: false };
-  }
-  function processCompositeMask(baseMaskCanvas) {
-    const expandPx = Math.max(0, parseFloat(maskExpandInput.value) || 0);
-    const featherPx = Math.max(0, parseFloat(maskFeatherInput.value) || 0);
-    let working = baseMaskCanvas;
-
-    if (expandPx > 0) {
-      const expanded = document.createElement('canvas');
-      expanded.width = working.width;
-      expanded.height = working.height;
-      const ectx = expanded.getContext('2d');
-      const step = Math.max(1, Math.floor(expandPx / 6));
-      for (let dy = -expandPx; dy <= expandPx; dy += step) {
-        for (let dx = -expandPx; dx <= expandPx; dx += step) {
-          if ((dx * dx) + (dy * dy) <= expandPx * expandPx) {
-            ectx.drawImage(working, dx, dy);
-          }
-        }
-      }
-      working = expanded;
-    }
-
-    if (featherPx > 0) {
-      const feathered = document.createElement('canvas');
-      feathered.width = working.width;
-      feathered.height = working.height;
-      const fctx = feathered.getContext('2d');
-      fctx.filter = `blur(${featherPx}px)`;
-      fctx.drawImage(working, 0, 0);
-      fctx.filter = 'none';
-      working = feathered;
-    }
-
-    return working;
-  }
-  function compositeResult(rawB64, srcCanvas, processedMaskCanvas) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const out = document.createElement('canvas');
-        out.width = srcCanvas.width;
-        out.height = srcCanvas.height;
-        const octx = out.getContext('2d');
-        octx.drawImage(srcCanvas, 0, 0);
-        octx.globalCompositeOperation = 'source-over';
-        octx.drawImage(img, 0, 0, out.width, out.height);
-        octx.globalCompositeOperation = 'destination-in';
-        octx.drawImage(processedMaskCanvas, 0, 0);
-
-        const preserve = document.createElement('canvas');
-        preserve.width = srcCanvas.width;
-        preserve.height = srcCanvas.height;
-        const pctx = preserve.getContext('2d');
-        pctx.drawImage(srcCanvas, 0, 0);
-        pctx.globalCompositeOperation = 'destination-out';
-        pctx.drawImage(processedMaskCanvas, 0, 0);
-
-        octx.globalCompositeOperation = 'source-over';
-        octx.drawImage(preserve, 0, 0);
-        resolve(out.toDataURL('image/png'));
-      };
-      img.onerror = () => reject(new Error('Could not load generated image for compositing.'));
-      img.src = 'data:image/png;base64,' + rawB64;
-    });
-  }
-  function renderInpaintResults() {
-    imagesWrap.innerHTML = '';
-    if (!lastInpaintRawResults?.length) return;
-    let assets;
-    try {
-      assets = buildEditAssets();
-    } catch (err) {
-      errorMsg.textContent = err.message;
-      errorMsg.style.display = 'block';
-      return;
-    }
-    const useComposite = compositeCb.checked && !assets.emptyMask;
-    const processedMask = useComposite ? processCompositeMask(assets.maskCanvas) : null;
-    Promise.all(lastInpaintRawResults.map(rawB64 =>
-      useComposite
-        ? compositeResult(rawB64, assets.srcCanvas, processedMask)
-        : Promise.resolve('data:image/png;base64,' + rawB64)
-    )).then(urls => {
-      errorMsg.style.display = 'none';
-      urls.forEach((src, i) => {
-        const suffix = useComposite ? '-composited' : '-raw';
-        const filename = 'inpaint-' + (i + 1) + suffix + '.png';
-        const wrap = document.createElement('div');
-        wrap.className = 'gen-image-wrap';
-        const imgEl = document.createElement('img');
-        imgEl.src = src;
-        imgEl.alt = 'Result ' + (i + 1);
-        const dl = document.createElement('a');
-        dl.className = 'download-btn';
-        dl.href = src;
-        dl.download = filename;
-        dl.textContent = 'Download';
-        wrap.appendChild(imgEl);
-        wrap.appendChild(dl);
-        imagesWrap.appendChild(wrap);
-      });
-    }).catch(err => {
-      errorMsg.textContent = err.message;
-      errorMsg.style.display = 'block';
-    });
-  }
-  function drawPadPreview() {
-    if (!sourceImage) return;
-    const ctx = padPreview.getContext('2d');
-    ctx.clearRect(0, 0, padPreview.width, padPreview.height);
-    if (currentMode() !== 'outpaint') return;
-    // The pad preview overlays red stripes on the mask canvas's own coords —
-    // at image resolution the preview shows where the extended canvas will sit,
-    // drawn inward by a proportional border so the user sees direction/weighting.
-    const W = sourceImage.naturalWidth, H = sourceImage.naturalHeight;
-    const top    = +document.getElementById('inp-pad-top').value    || 0;
-    const right  = +document.getElementById('inp-pad-right').value  || 0;
-    const bottom = +document.getElementById('inp-pad-bottom').value || 0;
-    const left   = +document.getElementById('inp-pad-left').value   || 0;
-    const newW = W + left + right, newH = H + top + bottom;
-    // Draw a rectangle scaled to newW×newH, with the original image region marked.
-    // But the preview canvas is at W×H — we'll show arrows instead.
-    ctx.strokeStyle = 'rgba(99,102,241,0.9)';
-    ctx.setLineDash([8, 6]);
-    ctx.lineWidth = Math.max(2, Math.min(W, H) / 200);
-    ctx.strokeRect(1, 1, W - 2, H - 2);
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(99,102,241,0.18)';
-    const bar = Math.max(20, Math.min(W, H) / 20);
-    if (top)    ctx.fillRect(0, 0, W, bar);
-    if (bottom) ctx.fillRect(0, H - bar, W, bar);
-    if (left)   ctx.fillRect(0, 0, bar, H);
-    if (right)  ctx.fillRect(W - bar, 0, bar, H);
-    ctx.fillStyle = '#e2e2e6';
-    ctx.font = `${Math.max(14, W / 60)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(`→ ${newW}×${newH} (pad ${top}/${right}/${bottom}/${left})`, W / 2, H - 10);
-  }
-
-  modeRadios.forEach(r => r.addEventListener('change', () => {
-    const m = currentMode();
-    brushCard.style.display = m === 'inpaint' ? '' : 'none';
-    padCard.style.display   = m === 'outpaint' ? '' : 'none';
-    maskCanvas.style.display = m === 'inpaint' ? '' : 'none';
-    padPreview.style.display = m === 'outpaint' ? '' : 'none';
-    drawPadPreview();
-    renderInpaintResults();
-  }));
-
-  // Build image + mask blobs based on mode.
-  function buildBlobs() {
-    return new Promise((resolve, reject) => {
-      const assets = buildEditAssets();
-      if (currentMode() === 'inpaint' && assets.emptyMask) {
-        return reject(new Error('Mask is empty — paint the area you want regenerated.'));
-      }
-      assets.srcCanvas.toBlob(imgBlob => {
-        assets.maskCanvas.toBlob(mBlob => resolve({
-          img: imgBlob,
-          mask: mBlob,
-          imgName: currentMode() === 'outpaint' ? 'padded.png' : 'image.png',
-          maskName: 'mask.png'
-        }), 'image/png');
-      }, 'image/png');
-    });
-  }
-
-  document.getElementById('inpaint-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const inpProv = document.getElementById('inp-provider');
-    if (!inpProv.value) {
-      errorMsg.textContent = 'Select an AtlasCloud provider first.'; errorMsg.style.display = 'block';
-      resultCard.style.display = 'block'; spinner.style.display = 'none';
-      return;
-    }
-    resultCard.style.display = 'block'; spinner.style.display = 'block';
-    errorMsg.style.display = 'none'; imagesWrap.innerHTML = ''; lastInpaintRawResults = null;
-    submitBtn.disabled = true; submitBtn.textContent = 'Applying…';
-
-    try {
-      const { img, mask, imgName, maskName } = await buildBlobs();
-      const data = new FormData();
-      data.set('provider_id', inpProv.value);
-      data.set('model',   modelInput.value.trim());
-      data.set('prompt',  promptInput.value.trim());
-      data.set('mode',    currentMode());
-      data.append('image', img, imgName);
-      data.append('mask',  mask, maskName);
-
-      const res  = await fetch('inpaint', { method: 'POST', body: data });
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        errorMsg.textContent = json.error || 'Unexpected error.'; errorMsg.style.display = 'block';
-      } else {
-        lastInpaintRawResults = json.images || [];
-        renderInpaintResults();
-      }
-    } catch (err) {
-      errorMsg.textContent = err.message; errorMsg.style.display = 'block';
-    } finally {
-      spinner.style.display = 'none'; submitBtn.disabled = false; submitBtn.textContent = 'Apply';
-      refreshProviderModels('inpaint', document.getElementById('inp-provider').value);
-    }
-  });
-})();
-
 // ── Prompt history modal ─────────────────────────────────────────────────────
 (function() {
   const modal       = document.getElementById('history-modal');
@@ -1793,16 +1279,6 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
       if (meta.style)   document.getElementById('gen-style').value   = meta.style;
       _selectProvIfAvailable(document.getElementById('gen-provider'), meta.provider_id);
       document.querySelector('[data-tab="img2img"]').click();
-    } else if (it.type === 'inpaint') {
-      document.getElementById('inp-prompt').value = it.prompt;
-      if (it.model) document.getElementById('inp_model').value = it.model;
-      if (meta.mode) {
-        document.querySelectorAll('#tab-inpaint input[name="mode"]').forEach(r => {
-          if (r.value === meta.mode) { r.checked = true; r.dispatchEvent(new Event('change')); }
-        });
-      }
-      _selectProvIfAvailable(document.getElementById('inp-provider'), meta.provider_id);
-      document.querySelector('[data-tab="inpaint"]').click();
     }
     closeModal();
   }
@@ -1839,6 +1315,166 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
   });
   document.querySelectorAll('.history-btn').forEach(btn => {
     btn.addEventListener('click', () => openModal(btn.dataset.history));
+  });
+})();
+
+// ── Improve-prompt modal ─────────────────────────────────────────────────────
+(function() {
+  const modal       = document.getElementById('improve-modal');
+  const closeBtn    = document.getElementById('improve-close');
+  const openBtn     = document.getElementById('improve-open-btn');
+  const provSel     = document.getElementById('improve-provider');
+  const modelInput  = document.getElementById('improve-model');
+  const modelDL     = document.getElementById('improve-model-datalist');
+  const chatEl      = document.getElementById('improve-chat');
+  const inputEl     = document.getElementById('improve-input');
+  const sendBtn     = document.getElementById('improve-send');
+  const useBtn      = document.getElementById('improve-use');
+  const genPrompt   = document.getElementById('gen-prompt');
+
+  const FINAL_RE = /<final_prompt>([\s\S]*?)<\/final_prompt>/i;
+  let history = [];        // [{role:'user'|'assistant', content:string}]
+  let finalPrompt = null;
+  let busy = false;
+
+  function fillProviders() {
+    const prev = provSel.value;
+    provSel.innerHTML = '<option value="">— LLM provider —</option>';
+    providers.filter(p => p.kind !== 'atlascloud').forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = `${p.name} (${p.kind})`;
+      provSel.appendChild(opt);
+    });
+    const saved = load('imgdesc_improve_provider_id', '');
+    const want = prev || saved;
+    if (want && [...provSel.options].some(o => o.value === String(want))) {
+      provSel.value = String(want);
+    }
+  }
+
+  async function refreshModelList() {
+    modelDL.innerHTML = '';
+    if (!provSel.value) return;
+    try {
+      const rows = await (await fetch(`api/providers/${provSel.value}/models?capability=improve`)).json();
+      rows.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.name; modelDL.appendChild(opt);
+      });
+    } catch {}
+  }
+
+  function renderMsg(role, content, cls) {
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (cls || role);
+    div.textContent = content;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
+  }
+
+  function setBusy(b) {
+    busy = b;
+    sendBtn.disabled = b;
+    sendBtn.textContent = b ? 'Thinking…' : 'Send';
+  }
+
+  async function callImprover() {
+    if (!provSel.value) { renderMsg('system', 'Select an LLM provider first.', 'system'); return; }
+    if (!modelInput.value.trim()) { renderMsg('system', 'Enter a model name.', 'system'); return; }
+    setBusy(true);
+    try {
+      const res = await fetch('improve-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider_id: provSel.value,
+          model: modelInput.value.trim(),
+          messages: history,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        renderMsg('system', 'Error: ' + (json.error || 'request failed'), 'system');
+        return;
+      }
+      const reply = (json.reply || '').trim();
+      history.push({ role: 'assistant', content: reply });
+      const m = reply.match(FINAL_RE);
+      if (m) {
+        finalPrompt = m[1].trim();
+        renderMsg('assistant', finalPrompt, 'final');
+        useBtn.style.display = '';
+        inputEl.disabled = true;
+        sendBtn.disabled = true;
+      } else {
+        renderMsg('assistant', reply);
+      }
+      // Refresh model datalist after first successful call so this model is remembered
+      refreshModelList();
+    } catch (err) {
+      renderMsg('system', 'Network error: ' + err.message, 'system');
+    } finally {
+      if (!finalPrompt) setBusy(false);
+    }
+  }
+
+  function openImprove() {
+    fillProviders();
+    refreshModelList();
+    const savedModel = load('imgdesc_improve_model', '');
+    if (savedModel && !modelInput.value) modelInput.value = savedModel;
+    history = [];
+    finalPrompt = null;
+    chatEl.innerHTML = '';
+    inputEl.value = '';
+    inputEl.disabled = false;
+    useBtn.style.display = 'none';
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send';
+    const draft = (genPrompt.value || '').trim();
+    if (!draft) {
+      renderMsg('system', 'Type a draft prompt in the Generate tab first, then click Improve.', 'system');
+      return;
+    }
+    history.push({ role: 'user', content: draft });
+    renderMsg('user', draft);
+    modal.classList.add('open');
+    setTimeout(() => inputEl.focus(), 40);
+    callImprover();
+  }
+
+  function closeImprove() { modal.classList.remove('open'); }
+
+  openBtn.addEventListener('click', openImprove);
+  closeBtn.addEventListener('click', closeImprove);
+  modal.addEventListener('click', e => { if (e.target === modal) closeImprove(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) closeImprove();
+  });
+
+  provSel.addEventListener('change', () => {
+    save('imgdesc_improve_provider_id', provSel.value);
+    refreshModelList();
+  });
+  modelInput.addEventListener('input', () => save('imgdesc_improve_model', modelInput.value));
+
+  sendBtn.addEventListener('click', () => {
+    if (busy || finalPrompt) return;
+    const text = inputEl.value.trim();
+    if (!text) return;
+    history.push({ role: 'user', content: text });
+    renderMsg('user', text);
+    inputEl.value = '';
+    callImprover();
+  });
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendBtn.click(); }
+  });
+
+  useBtn.addEventListener('click', () => {
+    if (finalPrompt != null) genPrompt.value = finalPrompt;
+    closeImprove();
   });
 })();
 </script>

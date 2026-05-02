@@ -47,10 +47,6 @@ DB_PATH = Path(os.environ.get("IMGDESC_DB", Path(__file__).parent / "data" / "im
 VALID_KINDS = {"openai", "openai-multipart", "atlascloud"}
 
 SCHEMA = """
-DROP TABLE IF EXISTS api_keys;
-DROP TABLE IF EXISTS endpoints;
-DROP TABLE IF EXISTS models;
-
 CREATE TABLE IF NOT EXISTS providers (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT NOT NULL UNIQUE,
@@ -65,7 +61,7 @@ CREATE TABLE IF NOT EXISTS providers (
 CREATE TABLE IF NOT EXISTS provider_models (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   provider_id INTEGER NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
-  capability  TEXT NOT NULL,      -- 'describe' | 'generate' | 'inpaint'
+  capability  TEXT NOT NULL,      -- 'describe' | 'generate' | 'improve'
   name        TEXT NOT NULL,
   last_used   TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(provider_id, capability, name)
@@ -555,70 +551,62 @@ def generate():
     return jsonify({"images": [i for i in images if i]})
 
 
-@app.route("/inpaint", methods=["POST"])
-def inpaint():
-    provider = _get_provider(request.form.get("provider_id"))
+# ── Prompt improver ──────────────────────────────────────────────────────────
+
+IMPROVE_SYSTEM_PROMPT = """You are an expert prompt engineer for text-to-image models.
+The user will give you a draft image prompt. Your job is to refine it into a well-structured
+prompt that covers, where applicable: Subject, Action/Pose, Style/Aesthetic, Environment/Setting,
+Lighting, Composition/Framing, Color palette, Mood, and Quality/technical modifiers.
+
+Workflow:
+1. Read the user's draft.
+2. Ask ONE concise clarifying question at a time about whichever dimension is most ambiguous
+   or most likely to change the result. Stop asking after at most 5 questions, or sooner if
+   you already have enough to write a strong prompt.
+3. When ready, output the final rewritten prompt wrapped EXACTLY like:
+     <final_prompt>...rewritten prompt here...</final_prompt>
+   Put nothing else in that turn — no preamble, no commentary, no markdown.
+
+Keep questions short and focused. Don't lecture. Don't repeat what the user already said."""
+
+
+@app.route("/improve-prompt", methods=["POST"])
+def improve_prompt():
+    data = request.get_json(silent=True) or {}
+    provider = _get_provider(data.get("provider_id"))
     if not provider:
         return jsonify({"error": "Provider is required"}), 400
-    if provider["kind"] != "atlascloud":
-        return jsonify({"error": "Inpaint currently requires an AtlasCloud provider"}), 400
-    model  = request.form.get("model", "").strip()
-    prompt = request.form.get("prompt", "").strip()
-    mode   = request.form.get("mode", "inpaint")
+    model = (data.get("model") or "").strip()
+    messages = data.get("messages") or []
+    if not model:
+        return jsonify({"error": "Model is required"}), 400
+    if not isinstance(messages, list) or not messages:
+        return jsonify({"error": "messages array is required"}), 400
 
-    if not model:   return jsonify({"error": "Model is required"}), 400
-    if not prompt:  return jsonify({"error": "Prompt is required"}), 400
+    safe_messages = []
+    for m in messages:
+        if not isinstance(m, dict): continue
+        role = m.get("role")
+        content = m.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content:
+            safe_messages.append({"role": role, "content": content})
+    if not safe_messages:
+        return jsonify({"error": "messages must contain at least one user/assistant turn"}), 400
 
-    if "image" not in request.files or not request.files["image"].filename:
-        return jsonify({"error": "Image is required"}), 400
-    if "mask" not in request.files or not request.files["mask"].filename:
-        return jsonify({"error": "Mask is required"}), 400
-
-    image_file = request.files["image"]
-    mask_file = request.files["mask"]
-    if not allowed_file(image_file.filename):
-        return jsonify({"error": f"Unsupported image file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
-    if not mask_file.filename.lower().endswith(".png"):
-        return jsonify({"error": "Mask must be a PNG"}), 400
-
-    try:
-        img_raw = image_file.read()
-        img_mime = get_mime_type(image_file.filename)
-        mask_raw = mask_file.read()
-        mask_mime = "image/png"
-        img_url = _atlas_upload_media(provider["api_key"], image_file.filename, img_raw, img_mime)
-        mask_url = _atlas_upload_media(provider["api_key"], mask_file.filename, mask_raw, mask_mime)
-    except Exception as e:
-        return jsonify({"error": f"Could not process image inputs: {e}"}), 400
-
-    _touch_provider_model(provider["id"], "inpaint", model)
-    _record_prompt("inpaint", prompt, model=model,
-                   metadata={"mode": mode, "provider_id": provider["id"], "provider_name": provider["name"]})
-
-    mode_clause = (
-        "Extend the scene naturally into those areas while preserving the original image style, structure, and detail in the preserved region. "
-        if mode == "outpaint" else
-        "Keep the preserved region aligned with the original image's style, texture, and detail. Do not introduce blockiness, mosaic artifacts, blur, oversharpening, or unrelated changes outside the masked area. "
-    )
-    instruction = (
-        "You are given two images. Image 1 is a black-and-white mask: BLACK is preserved, "
-        "WHITE marks the regions to regenerate. Image 2 is the source image that the mask "
-        "aligns to (same dimensions). "
-        f"{mode_clause}"
-        f"In the masked regions, follow this instruction: {prompt}"
-    )
+    full_messages = [{"role": "system", "content": IMPROVE_SYSTEM_PROMPT}, *safe_messages]
+    _touch_provider_model(provider["id"], "improve", model)
 
     try:
-        images_b64 = _atlas_submit_and_poll(provider["api_key"], model, {
-            "prompt": instruction,
-            "images": [mask_url, img_url],
-        })
+        client = make_client(provider["api_key"], provider["base_url"] or "")
+        resp = client.chat.completions.create(
+            model=model,
+            messages=full_messages,
+            temperature=0.5,
+            max_tokens=1024,
+        )
+        return jsonify({"reply": resp.choices[0].message.content})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-    if not images_b64:
-        return jsonify({"error": "AtlasCloud returned no images"}), 500
-    return jsonify({"images": images_b64})
 
 
 # ── Persisted data CRUD ──────────────────────────────────────────────────────
