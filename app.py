@@ -306,6 +306,20 @@ def _atlas_submit_and_poll(api_key: str, model: str, payload: dict, timeout_s: i
     raise TimeoutError(f"AtlasCloud polling timed out after {timeout_s}s (id={pred_id})")
 
 
+def _atlas_upload_media(api_key: str, filename: str, raw: bytes, mime: str) -> str:
+    """Upload a local file to AtlasCloud and return its temporary URL."""
+    headers = {"Authorization": f"Bearer {api_key}"}
+    files = {"file": (filename, raw, mime)}
+    r = http.post(f"{ATLAS_BASE}/uploadMedia", headers=headers, files=files, timeout=120)
+    if not r.ok:
+        raise RuntimeError(f"AtlasCloud uploadMedia {r.status_code}: {r.text[:500]}")
+    data = r.json()
+    url = _atlas_node(data).get("download_url") or data.get("url")
+    if not url:
+        raise RuntimeError(f"AtlasCloud uploadMedia returned no url: {str(data)[:400]}")
+    return url
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -421,32 +435,38 @@ def generate():
     )
     first_image_bytes = None
     first_image_mime = None
+    atlas_image_urls: list[str] = []
     image_data_urls: list[str] = []
 
     for f in uploaded_files:
         if not allowed_file(f.filename):
             return jsonify({"error": f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
         try:
-            raw, mime = to_jpeg_bytes(f)
-            b64 = base64.b64encode(raw).decode("utf-8")
-            image_data_urls.append(f"data:{mime};base64,{b64}")
-            if first_image_bytes is None:
-                first_image_bytes = raw
-                first_image_mime = mime
+            if provider["kind"] == "atlascloud":
+                raw = f.read()
+                mime = get_mime_type(f.filename)
+                atlas_image_urls.append(_atlas_upload_media(api_key, f.filename, raw, mime))
+            else:
+                raw, mime = to_jpeg_bytes(f)
+                b64 = base64.b64encode(raw).decode("utf-8")
+                image_data_urls.append(f"data:{mime};base64,{b64}")
+                if first_image_bytes is None:
+                    first_image_bytes = raw
+                    first_image_mime = mime
         except Exception as e:
             return jsonify({"error": f"Could not process image: {e}"}), 400
 
     app.logger.debug(
-        "/generate kind=%s model=%s files=%d data_urls=%d keys=%s files_keys=%s",
-        provider["kind"], model, len(uploaded_files), len(image_data_urls),
+        "/generate kind=%s model=%s files=%d atlas_urls=%d data_urls=%d keys=%s files_keys=%s",
+        provider["kind"], model, len(uploaded_files), len(atlas_image_urls), len(image_data_urls),
         list(request.form.keys()), list(request.files.keys()))
 
     if provider["kind"] == "atlascloud":
         atlas_payload: dict = {"prompt": full_prompt}
         if size:
             atlas_payload["size"] = size.replace("x", "*")
-        if image_data_urls:
-            atlas_payload["images"] = image_data_urls
+        if atlas_image_urls:
+            atlas_payload["images"] = atlas_image_urls
         try:
             images_b64 = _atlas_submit_and_poll(api_key, model, atlas_payload)
         except Exception as e:
@@ -554,25 +574,31 @@ def inpaint():
     if "mask" not in request.files or not request.files["mask"].filename:
         return jsonify({"error": "Mask is required"}), 400
 
+    image_file = request.files["image"]
+    mask_file = request.files["mask"]
+    if not allowed_file(image_file.filename):
+        return jsonify({"error": f"Unsupported image file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+    if not mask_file.filename.lower().endswith(".png"):
+        return jsonify({"error": "Mask must be a PNG"}), 400
+
     try:
-        img_raw, img_mime = to_jpeg_bytes(request.files["image"])
+        img_raw = image_file.read()
+        img_mime = get_mime_type(image_file.filename)
+        mask_raw = mask_file.read()
+        mask_mime = "image/png"
+        img_url = _atlas_upload_media(provider["api_key"], image_file.filename, img_raw, img_mime)
+        mask_url = _atlas_upload_media(provider["api_key"], mask_file.filename, mask_raw, mask_mime)
     except Exception as e:
-        return jsonify({"error": f"Could not process image: {e}"}), 400
-
-    mask_raw = request.files["mask"].read()
-    mask_mime = "image/png"
-
-    img_dataurl  = f"data:{img_mime};base64,"  + base64.b64encode(img_raw).decode("utf-8")
-    mask_dataurl = f"data:{mask_mime};base64," + base64.b64encode(mask_raw).decode("utf-8")
+        return jsonify({"error": f"Could not process image inputs: {e}"}), 400
 
     _touch_provider_model(provider["id"], "inpaint", model)
     _record_prompt("inpaint", prompt, model=model,
                    metadata={"mode": mode, "provider_id": provider["id"], "provider_name": provider["name"]})
 
     mode_clause = (
-        "Extend the scene naturally into those areas. "
+        "Extend the scene naturally into those areas while preserving the original image style, structure, and detail in the preserved region. "
         if mode == "outpaint" else
-        "Leave everything outside the white regions pixel-identical to the source. "
+        "Keep the preserved region aligned with the original image's style, texture, and detail. Do not introduce blockiness, mosaic artifacts, blur, oversharpening, or unrelated changes outside the masked area. "
     )
     instruction = (
         "You are given two images. Image 1 is a black-and-white mask: BLACK is preserved, "
@@ -585,7 +611,7 @@ def inpaint():
     try:
         images_b64 = _atlas_submit_and_poll(provider["api_key"], model, {
             "prompt": instruction,
-            "images": [mask_dataurl, img_dataurl],
+            "images": [mask_url, img_url],
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

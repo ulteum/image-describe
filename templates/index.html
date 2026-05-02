@@ -306,6 +306,13 @@
       margin-bottom: 0.3rem;
     }
     .label-row label { margin-bottom: 0; }
+    .inline-toggle {
+      display: flex; align-items: center; gap: 0.6rem; font-size: 0.88rem; color: #ccc;
+      margin-bottom: 0.85rem;
+    }
+    .subtle-copy {
+      color: #666; font-size: 0.78rem; line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -722,6 +729,28 @@
     <div class="field">
       <label>What should the masked area become?</label>
       <textarea id="inp-prompt" name="prompt" placeholder="e.g. replace with a wooden chair, or a sunset sky extending into the new canvas…" required></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Post-Processing</h2>
+    <label class="checkbox-item inline-toggle">
+      <input type="checkbox" id="inp-apply-composite" name="apply_composite" />
+      <span class="box"></span>Preview mask composite
+    </label>
+    <p class="subtle-copy" style="margin-bottom:0.9rem;">
+      Toggle between the raw model output and a composited preview that reapplies the processed mask over the original.
+      This lets you compare leakage and edge quality without regenerating.
+    </p>
+    <div class="gen-params-grid">
+      <div class="field" style="margin-bottom:0;">
+        <label>Mask expand px <span>(grow the white region before compositing)</span></label>
+        <input type="number" id="inp-mask-expand" name="mask_expand_px" min="0" max="64" step="1" value="0" />
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Mask feather px <span>(soften hard edges)</span></label>
+        <input type="number" id="inp-mask-feather" name="mask_feather_px" min="0" max="32" step="0.5" value="0" />
+      </div>
     </div>
   </div>
 
@@ -1229,10 +1258,14 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
   const submitBtn  = document.getElementById('inp-submit-btn');
   const modeRadios = document.querySelectorAll('#tab-inpaint input[name="mode"]');
   const padIds = ['inp-pad-top','inp-pad-right','inp-pad-bottom','inp-pad-left'];
+  const compositeCb = document.getElementById('inp-apply-composite');
+  const maskExpandInput = document.getElementById('inp-mask-expand');
+  const maskFeatherInput = document.getElementById('inp-mask-feather');
 
   let sourceImage = null;
   let erasing = false;
   let drawing = false;
+  let lastInpaintRawResults = null;
 
   // Persist model + padding + prompt
   modelInput.value = load('imgdesc_inp_model', 'google/nano-banana-pro/edit');
@@ -1241,13 +1274,28 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
     const el = document.getElementById(id);
     const saved = load('imgdesc_' + id, null);
     if (saved !== null) el.value = saved;
-    el.addEventListener('input', () => { save('imgdesc_' + id, el.value); drawPadPreview(); });
+    el.addEventListener('input', () => { save('imgdesc_' + id, el.value); drawPadPreview(); renderInpaintResults(); });
   });
   brushInput.value = load('imgdesc_inp_brush', 40);
   brushVal.textContent = brushInput.value;
   brushInput.addEventListener('input', () => {
     brushVal.textContent = brushInput.value;
     save('imgdesc_inp_brush', brushInput.value);
+  });
+  compositeCb.checked = load('imgdesc_inp_apply_composite', true);
+  compositeCb.addEventListener('change', () => {
+    save('imgdesc_inp_apply_composite', compositeCb.checked);
+    renderInpaintResults();
+  });
+  maskExpandInput.value = load('imgdesc_inp_mask_expand', 0);
+  maskExpandInput.addEventListener('input', () => {
+    save('imgdesc_inp_mask_expand', maskExpandInput.value);
+    renderInpaintResults();
+  });
+  maskFeatherInput.value = load('imgdesc_inp_mask_feather', 0);
+  maskFeatherInput.addEventListener('input', () => {
+    save('imgdesc_inp_mask_feather', maskFeatherInput.value);
+    renderInpaintResults();
   });
 
   function loadFile(file) {
@@ -1264,6 +1312,9 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
         padPreview.height= img.naturalHeight;
         imgCanvas.getContext('2d').drawImage(img, 0, 0);
         maskCanvas.getContext('2d').clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+        lastInpaintRawResults = null;
+        imagesWrap.innerHTML = '';
+        resultCard.style.display = 'none';
         canvasWrap.style.display = 'block';
         fileNameEl.textContent = `${file.name} — ${img.naturalWidth}×${img.naturalHeight}`;
         drawPadPreview();
@@ -1283,6 +1334,7 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
 
   clearBtn.addEventListener('click', () => {
     maskCanvas.getContext('2d').clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    renderInpaintResults();
   });
   eraseBtn.addEventListener('click', () => {
     erasing = !erasing;
@@ -1317,11 +1369,171 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
     if (!drawing) return;
     stroke(canvasPoint(e)); e.preventDefault();
   });
-  maskCanvas.addEventListener('pointerup',    () => { drawing = false; });
-  maskCanvas.addEventListener('pointercancel',() => { drawing = false; });
+  maskCanvas.addEventListener('pointerup',    () => { drawing = false; renderInpaintResults(); });
+  maskCanvas.addEventListener('pointercancel',() => { drawing = false; renderInpaintResults(); });
 
   function currentMode() {
     return [...modeRadios].find(r => r.checked).value;
+  }
+  function buildEditAssets() {
+    if (!sourceImage) throw new Error('No source image');
+    const m = currentMode();
+    const W = sourceImage.naturalWidth, H = sourceImage.naturalHeight;
+
+    if (m === 'inpaint') {
+      const src = document.createElement('canvas');
+      src.width = W; src.height = H;
+      src.getContext('2d').drawImage(sourceImage, 0, 0);
+
+      const maskOut = document.createElement('canvas');
+      maskOut.width = W; maskOut.height = H;
+      const mctx = maskOut.getContext('2d');
+      mctx.fillStyle = '#000';
+      mctx.fillRect(0, 0, W, H);
+      const drawn = maskCanvas.getContext('2d').getImageData(0, 0, W, H).data;
+      const out = mctx.getImageData(0, 0, W, H);
+      let painted = 0;
+      for (let i = 0; i < drawn.length; i += 4) {
+        if (drawn[i + 3] > 10) {
+          out.data[i] = 255;
+          out.data[i + 1] = 255;
+          out.data[i + 2] = 255;
+          out.data[i + 3] = 255;
+          painted++;
+        }
+      }
+      mctx.putImageData(out, 0, 0);
+      return { srcCanvas: src, maskCanvas: maskOut, emptyMask: painted === 0 };
+    }
+
+    const top    = +document.getElementById('inp-pad-top').value    || 0;
+    const right  = +document.getElementById('inp-pad-right').value  || 0;
+    const bottom = +document.getElementById('inp-pad-bottom').value || 0;
+    const left   = +document.getElementById('inp-pad-left').value   || 0;
+    if (top + right + bottom + left === 0) throw new Error('Padding must be non-zero on at least one side.');
+    const newW = W + left + right, newH = H + top + bottom;
+
+    const padded = document.createElement('canvas');
+    padded.width = newW; padded.height = newH;
+    const pctx = padded.getContext('2d');
+    pctx.fillStyle = '#7d7d7d';
+    pctx.fillRect(0, 0, newW, newH);
+    pctx.drawImage(sourceImage, left, top);
+
+    const maskOut = document.createElement('canvas');
+    maskOut.width = newW; maskOut.height = newH;
+    const mctx = maskOut.getContext('2d');
+    mctx.fillStyle = '#fff';
+    mctx.fillRect(0, 0, newW, newH);
+    mctx.fillStyle = '#000';
+    mctx.fillRect(left, top, W, H);
+
+    return { srcCanvas: padded, maskCanvas: maskOut, emptyMask: false };
+  }
+  function processCompositeMask(baseMaskCanvas) {
+    const expandPx = Math.max(0, parseFloat(maskExpandInput.value) || 0);
+    const featherPx = Math.max(0, parseFloat(maskFeatherInput.value) || 0);
+    let working = baseMaskCanvas;
+
+    if (expandPx > 0) {
+      const expanded = document.createElement('canvas');
+      expanded.width = working.width;
+      expanded.height = working.height;
+      const ectx = expanded.getContext('2d');
+      const step = Math.max(1, Math.floor(expandPx / 6));
+      for (let dy = -expandPx; dy <= expandPx; dy += step) {
+        for (let dx = -expandPx; dx <= expandPx; dx += step) {
+          if ((dx * dx) + (dy * dy) <= expandPx * expandPx) {
+            ectx.drawImage(working, dx, dy);
+          }
+        }
+      }
+      working = expanded;
+    }
+
+    if (featherPx > 0) {
+      const feathered = document.createElement('canvas');
+      feathered.width = working.width;
+      feathered.height = working.height;
+      const fctx = feathered.getContext('2d');
+      fctx.filter = `blur(${featherPx}px)`;
+      fctx.drawImage(working, 0, 0);
+      fctx.filter = 'none';
+      working = feathered;
+    }
+
+    return working;
+  }
+  function compositeResult(rawB64, srcCanvas, processedMaskCanvas) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const out = document.createElement('canvas');
+        out.width = srcCanvas.width;
+        out.height = srcCanvas.height;
+        const octx = out.getContext('2d');
+        octx.drawImage(srcCanvas, 0, 0);
+        octx.globalCompositeOperation = 'source-over';
+        octx.drawImage(img, 0, 0, out.width, out.height);
+        octx.globalCompositeOperation = 'destination-in';
+        octx.drawImage(processedMaskCanvas, 0, 0);
+
+        const preserve = document.createElement('canvas');
+        preserve.width = srcCanvas.width;
+        preserve.height = srcCanvas.height;
+        const pctx = preserve.getContext('2d');
+        pctx.drawImage(srcCanvas, 0, 0);
+        pctx.globalCompositeOperation = 'destination-out';
+        pctx.drawImage(processedMaskCanvas, 0, 0);
+
+        octx.globalCompositeOperation = 'source-over';
+        octx.drawImage(preserve, 0, 0);
+        resolve(out.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Could not load generated image for compositing.'));
+      img.src = 'data:image/png;base64,' + rawB64;
+    });
+  }
+  function renderInpaintResults() {
+    imagesWrap.innerHTML = '';
+    if (!lastInpaintRawResults?.length) return;
+    let assets;
+    try {
+      assets = buildEditAssets();
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.style.display = 'block';
+      return;
+    }
+    const useComposite = compositeCb.checked && !assets.emptyMask;
+    const processedMask = useComposite ? processCompositeMask(assets.maskCanvas) : null;
+    Promise.all(lastInpaintRawResults.map(rawB64 =>
+      useComposite
+        ? compositeResult(rawB64, assets.srcCanvas, processedMask)
+        : Promise.resolve('data:image/png;base64,' + rawB64)
+    )).then(urls => {
+      errorMsg.style.display = 'none';
+      urls.forEach((src, i) => {
+        const suffix = useComposite ? '-composited' : '-raw';
+        const filename = 'inpaint-' + (i + 1) + suffix + '.png';
+        const wrap = document.createElement('div');
+        wrap.className = 'gen-image-wrap';
+        const imgEl = document.createElement('img');
+        imgEl.src = src;
+        imgEl.alt = 'Result ' + (i + 1);
+        const dl = document.createElement('a');
+        dl.className = 'download-btn';
+        dl.href = src;
+        dl.download = filename;
+        dl.textContent = 'Download';
+        wrap.appendChild(imgEl);
+        wrap.appendChild(dl);
+        imagesWrap.appendChild(wrap);
+      });
+    }).catch(err => {
+      errorMsg.textContent = err.message;
+      errorMsg.style.display = 'block';
+    });
   }
   function drawPadPreview() {
     if (!sourceImage) return;
@@ -1363,66 +1575,24 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
     maskCanvas.style.display = m === 'inpaint' ? '' : 'none';
     padPreview.style.display = m === 'outpaint' ? '' : 'none';
     drawPadPreview();
+    renderInpaintResults();
   }));
 
   // Build image + mask blobs based on mode.
   function buildBlobs() {
     return new Promise((resolve, reject) => {
-      if (!sourceImage) return reject(new Error('No source image'));
-      const m = currentMode();
-      const W = sourceImage.naturalWidth, H = sourceImage.naturalHeight;
-
-      if (m === 'inpaint') {
-        const src = document.createElement('canvas');
-        src.width = W; src.height = H;
-        src.getContext('2d').drawImage(sourceImage, 0, 0);
-
-        const maskOut = document.createElement('canvas');
-        maskOut.width = W; maskOut.height = H;
-        const mctx = maskOut.getContext('2d');
-        mctx.fillStyle = '#000'; mctx.fillRect(0, 0, W, H);
-        const drawn = maskCanvas.getContext('2d').getImageData(0, 0, W, H).data;
-        const out = mctx.getImageData(0, 0, W, H);
-        let painted = 0;
-        for (let i = 0; i < drawn.length; i += 4) {
-          if (drawn[i + 3] > 10) {
-            out.data[i] = 255; out.data[i+1] = 255; out.data[i+2] = 255; out.data[i+3] = 255;
-            painted++;
-          }
-        }
-        if (painted === 0) return reject(new Error('Mask is empty — paint the area you want regenerated.'));
-        mctx.putImageData(out, 0, 0);
-
-        src.toBlob(imgBlob => {
-          maskOut.toBlob(mBlob => resolve({ img: imgBlob, mask: mBlob, imgName: 'image.jpg', maskName: 'mask.png' }), 'image/png');
-        }, 'image/jpeg', 0.92);
-        return;
+      const assets = buildEditAssets();
+      if (currentMode() === 'inpaint' && assets.emptyMask) {
+        return reject(new Error('Mask is empty — paint the area you want regenerated.'));
       }
-
-      // outpaint
-      const top    = +document.getElementById('inp-pad-top').value    || 0;
-      const right  = +document.getElementById('inp-pad-right').value  || 0;
-      const bottom = +document.getElementById('inp-pad-bottom').value || 0;
-      const left   = +document.getElementById('inp-pad-left').value   || 0;
-      if (top + right + bottom + left === 0) return reject(new Error('Padding must be non-zero on at least one side.'));
-      const newW = W + left + right, newH = H + top + bottom;
-
-      const padded = document.createElement('canvas');
-      padded.width = newW; padded.height = newH;
-      const pctx = padded.getContext('2d');
-      pctx.fillStyle = '#7d7d7d';
-      pctx.fillRect(0, 0, newW, newH);
-      pctx.drawImage(sourceImage, left, top);
-
-      const maskOut = document.createElement('canvas');
-      maskOut.width = newW; maskOut.height = newH;
-      const mctx = maskOut.getContext('2d');
-      mctx.fillStyle = '#fff'; mctx.fillRect(0, 0, newW, newH);
-      mctx.fillStyle = '#000'; mctx.fillRect(left, top, W, H);
-
-      padded.toBlob(imgBlob => {
-        maskOut.toBlob(mBlob => resolve({ img: imgBlob, mask: mBlob, imgName: 'padded.jpg', maskName: 'mask.png' }), 'image/png');
-      }, 'image/jpeg', 0.92);
+      assets.srcCanvas.toBlob(imgBlob => {
+        assets.maskCanvas.toBlob(mBlob => resolve({
+          img: imgBlob,
+          mask: mBlob,
+          imgName: currentMode() === 'outpaint' ? 'padded.png' : 'image.png',
+          maskName: 'mask.png'
+        }), 'image/png');
+      }, 'image/png');
     });
   }
 
@@ -1435,7 +1605,7 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
       return;
     }
     resultCard.style.display = 'block'; spinner.style.display = 'block';
-    errorMsg.style.display = 'none'; imagesWrap.innerHTML = '';
+    errorMsg.style.display = 'none'; imagesWrap.innerHTML = ''; lastInpaintRawResults = null;
     submitBtn.disabled = true; submitBtn.textContent = 'Applying…';
 
     try {
@@ -1453,19 +1623,8 @@ document.getElementById('img2img-form').addEventListener('submit', async e => {
       if (!res.ok || json.error) {
         errorMsg.textContent = json.error || 'Unexpected error.'; errorMsg.style.display = 'block';
       } else {
-        (json.images || []).forEach((b64, i) => {
-          const src = 'data:image/png;base64,' + b64;
-          const filename = 'inpaint-' + (i + 1) + '.png';
-          const wrap = document.createElement('div');
-          wrap.className = 'gen-image-wrap';
-          const imgEl = document.createElement('img');
-          imgEl.src = src; imgEl.alt = 'Result ' + (i + 1);
-          const dl = document.createElement('a');
-          dl.className = 'download-btn'; dl.href = src; dl.download = filename;
-          dl.textContent = 'Download';
-          wrap.appendChild(imgEl); wrap.appendChild(dl);
-          imagesWrap.appendChild(wrap);
-        });
+        lastInpaintRawResults = json.images || [];
+        renderInpaintResults();
       }
     } catch (err) {
       errorMsg.textContent = err.message; errorMsg.style.display = 'block';
